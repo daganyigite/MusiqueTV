@@ -10,6 +10,48 @@
   /* ---------- Réglages ---------- */
   var ACCENTS = ['#7DD3B8', '#F2B544', '#8AB4FF', '#F28B6B'];
   var accent = ACCENTS[0];
+
+  /* ---------- Réglages (gardés dans la mémoire de l'app) ---------- */
+  var SETTINGS = [
+    { k: 'scale', sec: 'Apparence', label: 'Taille de l\'interface', def: '1',
+      opts: [['0.9', 'Petite'], ['1', 'Normale'], ['1.1', 'Grande'], ['1.25', 'Très grande']] },
+    { k: 'blur', sec: 'Apparence', label: 'Flou du fond pendant la lecture', def: '60',
+      opts: [['25', 'Léger'], ['60', 'Moyen'], ['100', 'Fort'], ['150', 'Très fort']] },
+    { k: 'bgdim', sec: 'Apparence', label: 'Luminosité du fond', def: '0.45',
+      opts: [['0.25', 'Clair'], ['0.45', 'Normal'], ['0.65', 'Sombre']] },
+    { k: 'pagebg', sec: 'Apparence', label: 'Fond coloré des playlists et albums', def: '1',
+      opts: [['1', 'Activé'], ['0', 'Désactivé']] },
+    { k: 'clock', sec: 'Apparence', label: 'Horloge à l\'écran', def: '1',
+      opts: [['1', 'Affichée'], ['0', 'Masquée']] },
+    { k: 'anim', sec: 'Apparence', label: 'Animations', def: '1',
+      opts: [['1', 'Activées'], ['0', 'Réduites (plus fluide)']] },
+    { k: 'autoplayer', sec: 'Lecture', label: 'Lecteur plein écran au lancement d\'un titre', def: '0',
+      opts: [['0', 'Non, rester sur la page'], ['1', 'Oui']] },
+    { k: 'idle', sec: 'Lecture', label: 'Lecteur plein écran après inactivité', def: '0',
+      opts: [['0', 'Jamais'], ['60', 'Après 1 min'], ['180', 'Après 3 min'], ['300', 'Après 5 min']] },
+    { k: 'stallfix', sec: 'Lecture', label: 'Relancer un titre qui se bloque', def: '1',
+      opts: [['1', 'Activé'], ['0', 'Désactivé']] },
+    { k: 'hideexplicit', sec: 'Lecture', label: 'Titres explicites dans les listes', def: '0',
+      opts: [['0', 'Affichés'], ['1', 'Masqués']] },
+    { k: 'toasts', sec: 'Lecture', label: 'Messages à l\'écran', def: '1',
+      opts: [['1', 'Affichés'], ['0', 'Seulement les erreurs']] },
+    { k: 'video', sec: 'Vidéo', label: 'Lecteur vidéo', def: 'app',
+      opts: [['app', 'Celui de l\'app'], ['apple', 'Celui d\'Apple']] }
+  ];
+  var settingsStore = {};
+  try { settingsStore = JSON.parse(localStorage.getItem('tv_settings') || '{}') || {}; } catch (e) {}
+  try { if (localStorage.getItem('tv_video_native') === '1' && !settingsStore.video) settingsStore.video = 'apple'; } catch (e) {}
+  function setting(k) {
+    if (settingsStore[k] != null) return settingsStore[k];
+    var d = SETTINGS.filter(function (x) { return x.k === k; })[0];
+    return d ? d.def : null;
+  }
+  function setSetting(k, v) {
+    settingsStore[k] = v;
+    try { localStorage.setItem('tv_settings', JSON.stringify(settingsStore)); } catch (e) {}
+    if (k === 'video') { try { localStorage.setItem('tv_video_native', v === 'apple' ? '1' : '0'); } catch (e) {} }
+    applySettings();
+  }
   try { accent = localStorage.getItem('tv_accent') || accent; } catch (e) {}
 
   /* ---------- Styles ---------- */
@@ -39,6 +81,16 @@
     '#tvui .rgrp{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;color:#C9CBD3;margin:4px 12px 4px;flex-shrink:0}',
     '#tvui .rgrp svg{color:var(--acc)}',
     '#tvui .grid{display:flex;flex-wrap:wrap;gap:28px 24px;padding:18px 18px;margin:-8px -18px 0}',
+    '#tvui .clock{position:fixed;top:22px;right:34px;z-index:4;font-size:20px;font-weight:700;color:#E6E7EC;text-shadow:0 2px 8px rgba(0,0,0,.6);pointer-events:none}',
+    '#tvui.noclock .clock{display:none}',
+    '#tvui.noanim *{transition:none!important;animation-duration:0s!important}',
+    '#tvui.noanim .vspin{animation:tvspin 1s linear infinite!important}',
+    '#tvui .rail{position:relative;z-index:2}',
+    '#tvui .main{position:relative;z-index:1}',
+    '#tvui .pagebgw{position:fixed;top:0;right:0;bottom:0;left:270px;overflow:hidden;z-index:0;pointer-events:none}',
+    '#tvui .pagebg{position:absolute;inset:-12%;background:#0E0F13 center/cover no-repeat;filter:blur(var(--blur,60px)) saturate(1.5);transform:scale(1.1);opacity:0;transition:opacity .6s}',
+    '#tvui .pagebg.on{opacity:.75}',
+    '#tvui .pageshade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,15,19,calc(var(--dim,.45) - .1)) 0%,rgba(14,15,19,calc(var(--dim,.45) + .25)) 60%,rgba(14,15,19,.95) 100%)}',
     '#tvui .vstage{position:fixed;inset:0;z-index:20;background:#000}',
     '#tvui .vbox{position:absolute;inset:0}',
     '#tvui .vposter{position:absolute;inset:0;background:#000 center/cover no-repeat;opacity:.35;filter:blur(2px)}',
@@ -134,9 +186,9 @@
     '#tvui .bar i{display:block;height:100%;background:var(--acc);width:0}',
     '#tvui .player{position:fixed;inset:0;background:#0E0F13;display:flex;gap:5vw;padding:7vh 6vw;z-index:5;overflow:hidden}',
     '#tvui .player>.pmain,#tvui .player>.queue{position:relative;z-index:1}',
-    '#tvui .pbg{position:absolute;inset:-8%;background:#0E0F13 center/cover no-repeat;transform:scale(1.15);opacity:0;transition:opacity .5s}',
+    '#tvui .pbg{position:absolute;inset:-15%;background:#0E0F13 center/cover no-repeat;filter:blur(var(--blur,60px)) saturate(1.6);transform:scale(1.1);opacity:0;transition:opacity .5s}',
     '#tvui .pbg.on{opacity:1}',
-    '#tvui .pshade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,11,14,.55) 0%,rgba(10,11,14,.72) 55%,rgba(10,11,14,.88) 100%)}',
+    '#tvui .pshade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,11,14,var(--dim,.45)) 0%,rgba(10,11,14,calc(var(--dim,.45) + .15)) 55%,rgba(10,11,14,calc(var(--dim,.45) + .3)) 100%)}',
     '#tvui .player .big{box-shadow:0 30px 80px rgba(0,0,0,.55)}',
     '#tvui .player .partist,#tvui .player .times,#tvui .player .cb.sm{color:#D5D7DE}',
     '#tvui .player .queue{border-left-color:rgba(255,255,255,.14)}',
@@ -165,8 +217,13 @@
     '#tvui input.search:focus{outline:3px solid var(--acc)}',
     '#tvui .msg{color:#9A9CA6;font-size:16px;padding:20px 0}',
     '#tvui .swatch{width:52px;height:52px;border-radius:50%;outline:none}',
+    '#tvui .setlist{display:flex;flex-direction:column;gap:6px;max-width:820px}',
+    '#tvui .setrow{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:6px 6px 6px 18px;border-radius:14px;background:rgba(255,255,255,.04)}',
+    '#tvui .setl{font-size:16px;color:#E6E7EC}',
+    '#tvui .setv{height:46px;min-width:220px;justify-content:space-between;font-size:15px}',
+    '#tvui .setarr{font-size:22px;opacity:.6;margin-left:14px}',
     '#tvui .swatch:focus{outline:4px solid #F2F2F4;outline-offset:4px}',
-    '@media (max-width:1100px){#tvui .rail{width:230px}#tvui .mini{left:230px}#tvui .queue{display:none}#tvui .mb{width:44px;height:44px}#tvui .pill{padding:0 10px}#tvui .mnow{margin:0 6px}#tvui .qpanel{width:60vw}#tvui .ctrls{gap:14px}#tvui .cb.pp{width:72px;height:72px}#tvui .main{padding:36px 36px 120px}}'
+    '@media (max-width:1100px){#tvui .rail{width:230px}#tvui .mini{left:230px}#tvui .pagebgw{left:230px}#tvui .queue{display:none}#tvui .mb{width:44px;height:44px}#tvui .pill{padding:0 10px}#tvui .mnow{margin:0 6px}#tvui .qpanel{width:60vw}#tvui .ctrls{gap:14px}#tvui .cb.pp{width:72px;height:72px}#tvui .main{padding:36px 36px 120px}}'
   ].join('');
 
   /* ---------- Icônes ---------- */
@@ -239,6 +296,19 @@
   root.id = 'tvui';
   root.style.setProperty('--acc', accent);
   document.body.appendChild(root);
+  function applySettings() {
+    root.style.zoom = setting('scale');
+    root.style.setProperty('--blur', setting('blur') + 'px');
+    root.style.setProperty('--dim', setting('bgdim'));
+    root.classList.toggle('noanim', setting('anim') === '0');
+    root.classList.toggle('noclock', setting('clock') === '0');
+  }
+  applySettings();
+  // Horloge
+  setInterval(function () {
+    var c = root.querySelector('.clock');
+    if (c) { var d = new Date(); c.textContent = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+  }, 10000);
   document.documentElement.classList.add('tv-on');
   document.documentElement.style.overflow = 'hidden';
 
@@ -364,6 +434,64 @@
     }
   }, true);
 
+  /* ---------- Titres qui se bloquent ----------
+   * Certains titres s'arrêtent tout seuls après quelques secondes (souci de flux côté Apple).
+   * On surveille : si la lecture se fige sans que tu aies appuyé sur pause, on relance au même endroit. */
+  var lastUserAction = 0;
+  var playErrors = [];
+  var stall = { id: null, t: 0, since: 0, tries: 0 };
+  function userAction() { lastUserAction = Date.now(); idleSince = Date.now(); }
+  function logPlayError(msg) {
+    var it = nowItem(), a = itemAttrs(it);
+    var d = new Date();
+    playErrors.push(('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ' · ' + (a.name || '?') + ' · ' + msg);
+    if (playErrors.length > 20) playErrors.shift();
+  }
+  function recoverStall(t, why) {
+    stall.tries++;
+    logPlayError('bloqué à ' + fmt(t) + ' (' + why + '), relance ' + stall.tries);
+    toast('Le titre s\'est bloqué, je le relance…');
+    var pos = 0;
+    try { pos = music.queue.position; } catch (e) {}
+    Promise.resolve(music.changeToMediaAtIndex ? music.changeToMediaAtIndex(pos) : null)
+      .then(function () { return t > 1 ? music.seekToTime(t) : null; })
+      .then(function () { return music.play(); })
+      .catch(function () {
+        logPlayError('relance impossible, titre suivant');
+        try { music.skipToNextItem(); } catch (e) {}
+      });
+  }
+  setInterval(function () {
+    if (!music || videoMode || setting('stallfix') !== '1') return;
+    var it = nowItem();
+    if (!it) return;
+    var t = music.currentPlaybackTime || 0;
+    var d = music.currentPlaybackDuration || 0;
+    var st = music.playbackState;
+    if (it.id !== stall.id) { stall = { id: it.id, t: t, since: Date.now(), tries: 0 }; return; }
+    var nearEnd = d && t > d - 3;
+    var userPaused = Date.now() - lastUserAction < 3000;
+    // Cas 1 : il « joue » mais le temps n'avance plus. Cas 2 : il s'est mis en pause tout seul.
+    var frozen = (music.isPlaying || st === 8 || st === 9) && Math.abs(t - stall.t) < 0.05;
+    var selfPaused = st === 3 && !userPaused && t > 0.5 && !nearEnd && stall.wasPlaying;
+    if ((frozen && Date.now() - stall.since > 4000) || selfPaused) {
+      if (stall.tries < 3) { stall.since = Date.now(); recoverStall(t, frozen ? 'figé' : 'arrêt tout seul'); }
+      stall.wasPlaying = false;
+      return;
+    }
+    if (Math.abs(t - stall.t) >= 0.05) { stall.t = t; stall.since = Date.now(); }
+    stall.wasPlaying = music.isPlaying;
+  }, 1000);
+
+  /* ---------- Lecteur plein écran après inactivité ---------- */
+  var idleSince = Date.now();
+  window.addEventListener('keydown', function () { idleSince = Date.now(); }, true);
+  setInterval(function () {
+    var secs = +setting('idle');
+    if (!secs || !music || videoMode || playerOpen || queueOpen || signingIn) return;
+    if (music.isPlaying && Date.now() - idleSince > secs * 1000) openPlayer();
+  }, 5000);
+
   /* Retour (appelé par l'app Android). Renvoie true si géré. */
   window.__tvBack = function () {
     if (signingIn) { viewLogin(); return true; }
@@ -376,6 +504,7 @@
   };
   window.__tvMedia = function (a) {
     if (!music) return;
+    userAction();
     try {
       if (a === 'toggle') music.isPlaying ? music.pause() : music.play();
       if (a === 'play') music.play();
@@ -480,8 +609,17 @@
     });
   }
 
-  function shell(content) {
-    root.innerHTML = railHtml() + '<div class="main">' + content + '</div>' + miniHtml();
+  function shell(content, opts) {
+    opts = opts || {};
+    var bg = opts.bg && setting('pagebg') === '1'
+      ? '<div class="pagebgw"><div class="pagebg" style="background-image:url(\'' + opts.bg + '\')"></div><div class="pageshade"></div></div>' : '';
+    root.innerHTML = railHtml() + bg + '<div class="main">' + content + '</div>' + miniHtml() + '<div class="clock"></div>';
+    var ck = root.querySelector('.clock'); if (ck) { var d0 = new Date(); ck.textContent = ('0' + d0.getHours()).slice(-2) + ':' + ('0' + d0.getMinutes()).slice(-2); }
+    if (bg) {
+      var pb = root.querySelector('.pagebg'), im = new Image();
+      im.onload = function () { pb.classList.add('on'); };
+      im.src = opts.bg;
+    }
     bindRail();
     bindCommon();
     if (playerOpen) {
@@ -726,17 +864,31 @@
 
   /* ----- Réglages ----- */
   function viewSettings() {
+    var secs = {};
+    SETTINGS.forEach(function (d) { (secs[d.sec] = secs[d.sec] || []).push(d); });
+    function rowHtml2(d) {
+      var v = setting(d.k);
+      var o = d.opts.filter(function (x) { return x[0] === v; })[0] || d.opts[0];
+      return '<div class="setrow"><span class="setl">' + esc(d.label) + '</span>' +
+        '<div class="btn setv" data-f tabindex="0" data-set="' + d.k + '">' + esc(o[1]) + '<span class="setarr">›</span></div></div>';
+    }
     var html = '<h1>Réglages</h1>' +
       '<h2>Couleur d\'accent</h2><div class="row" style="gap:20px">' +
       ACCENTS.map(function (c) { return '<div class="swatch" data-f tabindex="0" data-c="' + c + '" style="background:' + c + '"></div>'; }).join('') +
-      '</div><h2>Compte</h2><div class="btns">' +
+      '</div>';
+    Object.keys(secs).forEach(function (sec) {
+      html += '<h2>' + esc(sec) + '</h2><div class="setlist">' + secs[sec].map(rowHtml2).join('') + '</div>';
+    });
+    html += '<h2>Compte</h2><div class="btns">' +
       '<div class="btn" data-f tabindex="0" id="reload">Recharger l\'app</div>' +
+      '<div class="btn" data-f tabindex="0" id="clearcache">Vider le cache</div>' +
       '<div class="btn" data-f tabindex="0" id="logout">Se déconnecter</div></div>' +
       '<h2>Dépannage</h2><div class="btns"><div class="btn" data-f tabindex="0" id="diag">Tester la lecture</div>' +
-      '<div class="btn" data-f tabindex="0" id="vmode">Vidéos : ' + (localStorage.getItem('tv_video_native') === '1' ? 'lecteur Apple' : 'lecteur de l\'app') + '</div></div>' +
+      '<div class="btn" data-f tabindex="0" id="resetset">Réglages par défaut</div></div>' +
+      (playErrors.length ? '<p class="sub" style="margin-top:14px;line-height:1.6">Derniers incidents de lecture :<br>' + playErrors.slice(-5).map(esc).join('<br>') + '</p>' : '') +
       '<h2>Aide</h2><p class="sub" style="max-width:760px;line-height:1.6">Contenu explicite : ' + (restricted() ? '<b style="color:#F28B6B">bloqué</b>' : 'autorisé') +
-      '. Ce réglage dépend de ton compte Apple, pas de l\'app. Pour le changer : sur ton PC ou téléphone, va sur music.apple.com, clique sur ton compte &gt; Réglages, et sous Contrôle parental désactive Restrictions du contenu. Ensuite, dans cette app : Réglages &gt; Recharger l\'app.</p>' +
-      '<p class="sub" style="margin-top:28px">Pays du compte : ' + esc(sf.toUpperCase()) + '</p>';
+      '. Ce réglage dépend de ton compte Apple, pas de l\'app : music.apple.com &gt; ton compte &gt; Réglages &gt; Contrôle parental &gt; Musique et podcasts : Explicite. Ensuite : Recharger l\'app.</p>' +
+      '<p class="sub" style="margin-top:20px">Pays du compte : ' + esc(sf.toUpperCase()) + ' · Musique TV</p>';
     shell(html);
     root.querySelectorAll('.swatch').forEach(function (el) {
       el.onclick = function () {
@@ -745,13 +897,27 @@
         try { localStorage.setItem('tv_accent', accent); } catch (e) {}
       };
     });
+    root.querySelectorAll('[data-set]').forEach(function (el) {
+      el.onclick = function () {
+        var k = el.getAttribute('data-set');
+        var d = SETTINGS.filter(function (x) { return x.k === k; })[0];
+        var v = setting(k);
+        var i = 0;
+        for (var j = 0; j < d.opts.length; j++) if (d.opts[j][0] === v) i = j;
+        var n = d.opts[(i + 1) % d.opts.length];
+        setSetting(k, n[0]);
+        el.innerHTML = esc(n[1]) + '<span class="setarr">›</span>';
+        if (k === 'scale') { focusEl(el); }
+      };
+    });
     root.querySelector('#reload').onclick = function () { clearApiCache(); side.loaded = false; try { TVBridge.reloadUi(); } catch (e) { location.reload(); } };
-    root.querySelector('#diag').onclick = function () { pushView(viewDiagnostic); };
-    root.querySelector('#vmode').onclick = function () {
-      var n = localStorage.getItem('tv_video_native') === '1';
-      try { localStorage.setItem('tv_video_native', n ? '0' : '1'); } catch (e) {}
-      this.textContent = 'Vidéos : ' + (n ? 'lecteur de l\'app' : 'lecteur Apple');
+    root.querySelector('#clearcache').onclick = function () { clearApiCache(); side.loaded = false; loadSidebar(); toast('Cache vidé'); };
+    root.querySelector('#resetset').onclick = function () {
+      settingsStore = {};
+      try { localStorage.removeItem('tv_settings'); localStorage.removeItem('tv_video_native'); } catch (e) {}
+      applySettings(); viewSettings(); toast('Réglages remis par défaut');
     };
+    root.querySelector('#diag').onclick = function () { pushView(viewDiagnostic); };
     root.querySelector('#logout').onclick = function () {
       Promise.resolve(music.unauthorize()).then(function () { viewLogin(); });
     };
@@ -856,6 +1022,7 @@
   function showTrackList(item, tracks) {
     var at = item.attributes || {};
     tracks = (tracks || []).filter(function (t) { return t && t.attributes; });
+    if (setting('hideexplicit') === '1') tracks = tracks.filter(function (t) { return t.attributes.contentRating !== 'explicit'; });
     var html = '<div class="detail"><div class="dleft">' +
       '<div class="art" style="' + artStyle(at, 640, at.name) + '">' + (artUrl(at, 10) ? '' : initial(at.name)) + '</div>' +
       '<h1>' + esc(at.name) + '</h1><p class="sub">' + tracks.length + ' titres' + (at.artistName ? ' · ' + esc(at.artistName) : '') + '</p>' +
@@ -869,7 +1036,7 @@
           '<div class="tx"><div class="tt">' + esc(a.name) + (a.contentRating === 'explicit' ? '<span class="ex">E</span>' : '') + '</div><div class="ta">' + esc(a.artistName) + (blocked ? ' · version non censurée si elle existe' : '') + '</div></div>' +
           '<span class="du">' + fmtMs(a.durationInMillis) + '</span></div>';
       }).join('') + (tracks.length ? '' : '<p class="msg">Liste vide.</p>') + '</div></div>';
-    shell(html);
+    shell(html, { bg: artUrl(at, 300) || null });
     root.querySelector('#playAll').onclick = function () { setShuffle(false); playItems(tracks, 0, item); };
     root.querySelector('#shuffleAll').onclick = function () {
       setShuffle(true);
@@ -956,6 +1123,7 @@
   }
   function playItems(items, start, container) {
     if (!items.length) return;
+    userAction();
     start = start || 0;
     var target = items[start];
     var attempts = queueAttempts(items, start, container);
@@ -979,6 +1147,7 @@
         .then(function () {
           lastPlayLog.push(a[0] + ' : OK');
           updateMini();
+          if (setting('autoplayer') === '1') openPlayer();
         })
         .catch(function (e) {
           lastErr = e;
@@ -1030,7 +1199,7 @@
     videoMode = true;
     document.documentElement.classList.remove('tv-on');
     var native = false;
-    try { native = localStorage.getItem('tv_video_native') === '1'; } catch (e) {}
+    native = setting('video') === 'apple';
     Promise.resolve(music.setQueue({ musicVideo: id }))
       .then(function () {
         // On lance la lecture sans attendre et on cherche la vidéo en parallèle (plus rapide).
@@ -1074,7 +1243,7 @@
       if (moved && hasPicture) return;
       if (!music.isPlaying && moved) return;
       // Ne marche pas ici : on rend la vidéo au lecteur d'Apple.
-      try { localStorage.setItem('tv_video_native', '1'); } catch (e) {}
+      setSetting('video', 'apple');
       restoreSiteVideo();
       vid.stage && vid.stage.remove();
       vid = { el: el, native: true };
@@ -1108,7 +1277,7 @@
     stage.querySelector('.vbox').appendChild(el);
     el.setAttribute('style', 'width:100%;height:100%;object-fit:contain;background:#000');
     if (el.paused) { try { el.play(); } catch (e) {} }
-    stage.querySelector('#vpp').onclick = function () { music.isPlaying ? music.pause() : music.play(); };
+    stage.querySelector('#vpp').onclick = function () { userAction(); music.isPlaying ? music.pause() : music.play(); };
     stage.querySelector('#vback').onclick = function () { music.seekToTime(Math.max(0, (music.currentPlaybackTime || 0) - 10)); };
     stage.querySelector('#vfwd').onclick = function () { music.seekToTime((music.currentPlaybackTime || 0) + 10); };
     stage.querySelector('#vclose').onclick = exitVideo;
@@ -1150,7 +1319,8 @@
     focusEl(root.querySelector('.main [data-f]'));
   }
 
-  function toast(text) {
+  function toast(text, isError) {
+    if (setting('toasts') === '0' && !isError && !/impossible|erreur|ne démarre|bloqu/i.test(text)) return;
     var t = document.createElement('div');
     t.textContent = text;
     t.style.cssText = 'position:fixed;left:50%;top:32px;transform:translateX(-50%);background:#F2F2F4;color:#0E0F13;padding:14px 26px;border-radius:26px;font:600 16px Manrope,system-ui,sans-serif;z-index:2147483647';
@@ -1197,7 +1367,7 @@
     if (queueOpen) markQueueCurrent();
     updateProgress();
   }
-  function togglePlay() { music.isPlaying ? music.pause() : music.play(); }
+  function togglePlay() { userAction(); music.isPlaying ? music.pause() : music.play(); }
   function prevTrack() {
     if ((music.currentPlaybackTime || 0) > 4) music.seekToTime(0); else music.skipToPreviousItem();
   }
@@ -1317,8 +1487,8 @@
       var items = music.queue.items || [];
       q = items.slice(music.queue.position + 1, music.queue.position + 7);
     } catch (e) {}
-    // Fond : la pochette en très petite taille, agrandie -> flou naturel, sans effet coûteux pour la télé.
-    var bgUrl = artUrl(a, 40);
+    // Fond : la pochette floutée (intensité réglable dans Réglages).
+    var bgUrl = artUrl(a, 300);
     var bgKey = bgUrl || (a.name || '');
     var oldBg = p.getAttribute('data-bg');
     p.innerHTML =
@@ -1347,7 +1517,7 @@
       im.onload = function () { bg.classList.add('on'); };
       im.src = bgUrl;
     } else { bg.classList.add('on'); }
-    p.querySelector('#pp').onclick = function () { music.isPlaying ? music.pause() : music.play(); };
+    p.querySelector('#pp').onclick = function () { userAction(); music.isPlaying ? music.pause() : music.play(); };
     p.querySelector('#pnx').onclick = function () { music.skipToNextItem(); };
     p.querySelector('#ppr').onclick = function () {
       if ((music.currentPlaybackTime || 0) > 4) music.seekToTime(0); else music.skipToPreviousItem();
@@ -1443,6 +1613,10 @@
     on('nowPlayingItemDidChange', function () { updateMini(); if (playerOpen) drawPlayer(); });
     on('playbackStateDidChange', function () { updateMini(); updatePlayButton(); updateVideoControls(); });
     var lastTick = 0;
+    on('mediaPlaybackError', function (e) {
+      var code = e && (e.errorCode || (e.error && (e.error.errorCode || e.error.message)) || e.message) || 'erreur';
+      logPlayError('erreur ' + code);
+    });
     on('playbackTimeDidChange', function () {
       var now = Date.now();
       if (now - lastTick < 500) return;
