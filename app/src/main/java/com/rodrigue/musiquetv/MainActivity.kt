@@ -58,6 +58,11 @@ class MainActivity : Activity() {
         web.setBackgroundColor(Color.parseColor("#0E0F13"))
         web.addJavascriptInterface(Bridge(), "TVBridge")
         web.webViewClient = object : WebViewClient() {
+            // Pendant le chargement, on cache le site Apple derrière l'écran d'attente.
+            override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                splash.visibility = View.VISIBLE
+            }
+
             override fun onPageFinished(view: WebView, url: String) {
                 if (url.contains("music.apple.com")) {
                     view.evaluateJavascript(uiScript, null)
