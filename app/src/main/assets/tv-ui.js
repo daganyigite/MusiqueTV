@@ -54,6 +54,9 @@
     '#tvui .trk .tt{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '#tvui .trk .ta{font-size:13px;color:#9A9CA6}',
     '#tvui .trk .du{font-size:14px;color:#9A9CA6}',
+    '#tvui .trk.blocked{opacity:.45}',
+    '#tvui .ex{display:inline-block;margin-left:8px;padding:0 5px;border-radius:4px;background:#2A2C36;color:#C9CBD3;font-size:11px;font-weight:800;line-height:17px;vertical-align:2px}',
+    '#tvui .notice{background:#1E2028;border-radius:12px;padding:14px 18px;margin-bottom:10px;color:#C9CBD3;font-size:14px;line-height:1.5}',
     '#tvui .mini{position:fixed;left:220px;right:0;bottom:0;height:86px;background:#16171D;border-top:1px solid #1E2028;display:flex;align-items:center;gap:18px;padding:0 56px;outline:none}',
     '#tvui .mini:focus{background:#1E2028;box-shadow:inset 0 0 0 3px #F2F2F4}',
     '#tvui .mini .art{width:52px;height:52px;border-radius:8px;padding:0;font-size:0;flex-shrink:0}',
@@ -476,6 +479,8 @@
       '<div class="btn" data-f tabindex="0" id="reload">Recharger l\'app</div>' +
       '<div class="btn" data-f tabindex="0" id="logout">Se déconnecter</div></div>' +
       '<h2>Dépannage</h2><div class="btns"><div class="btn" data-f tabindex="0" id="diag">Tester la lecture</div></div>' +
+      '<h2>Aide</h2><p class="sub" style="max-width:760px;line-height:1.6">Contenu explicite : ' + (restricted() ? '<b style="color:#F28B6B">bloqué</b>' : 'autorisé') +
+      '. Ce réglage dépend de ton compte Apple, pas de l\'app. Pour le changer : sur ton PC ou téléphone, va sur music.apple.com, clique sur ton compte &gt; Réglages, et sous Contrôle parental désactive Restrictions du contenu. Ensuite, dans cette app : Réglages &gt; Recharger l\'app.</p>' +
       '<p class="sub" style="margin-top:28px">Pays du compte : ' + esc(sf.toUpperCase()) + '</p>';
     shell(html);
     root.querySelectorAll('.swatch').forEach(function (el) {
@@ -596,11 +601,12 @@
       '<h1>' + esc(at.name) + '</h1><p class="sub">' + tracks.length + ' titres' + (at.artistName ? ' · ' + esc(at.artistName) : '') + '</p>' +
       '<div class="btns"><div class="btn pri" data-f tabindex="0" id="playAll">' + SVG_PLAY + 'Lecture</div>' +
       '<div class="btn" data-f tabindex="0" id="shuffleAll">' + icon('shuffle', 18) + 'Aléatoire</div></div></div>' +
-      '<div class="tracks">' + tracks.map(function (t, i) {
+      '<div class="tracks">' + blockedNotice(tracks) + tracks.map(function (t, i) {
         var a = t.attributes;
-        return '<div class="trk" data-f tabindex="0" data-i="' + i + '"><span class="n">' + (i + 1) + '</span>' +
+        var blocked = isBlocked(t);
+        return '<div class="trk' + (blocked ? ' blocked' : '') + '" data-f tabindex="0" data-i="' + i + '"><span class="n">' + (i + 1) + '</span>' +
           '<div class="art" style="' + artStyle(a, 100, a.name) + '"></div>' +
-          '<div class="tx"><div class="tt">' + esc(a.name) + '</div><div class="ta">' + esc(a.artistName) + '</div></div>' +
+          '<div class="tx"><div class="tt">' + esc(a.name) + (a.contentRating === 'explicit' ? '<span class="ex">E</span>' : '') + '</div><div class="ta">' + esc(a.artistName) + (blocked ? ' · bloqué par ton compte Apple' : '') + '</div></div>' +
           '<span class="du">' + fmtMs(a.durationInMillis) + '</span></div>';
       }).join('') + (tracks.length ? '' : '<p class="msg">Liste vide.</p>') + '</div></div>';
     shell(html);
@@ -610,7 +616,11 @@
       playItems(tracks, Math.floor(Math.random() * Math.max(1, tracks.length)), item);
     };
     root.querySelectorAll('.trk').forEach(function (el) {
-      el.onclick = function () { playItems(tracks, +el.getAttribute('data-i'), item); };
+      el.onclick = function () {
+        var idx = +el.getAttribute('data-i');
+        if (isBlocked(tracks[idx])) { toast('Titre explicite bloqué par les réglages de ton compte Apple.'); return; }
+        playItems(tracks, idx, item);
+      };
     });
     focusEl(root.querySelector('#playAll'));
   }
@@ -619,24 +629,57 @@
   function setShuffle(on) {
     try { music.shuffleMode = on ? 1 : 0; } catch (e) {}
   }
-  /* On essaie plusieurs façons de lancer la lecture et on garde la première qui marche.
-   * (Le lecteur Apple n'accepte pas toujours la même méthode selon l'appareil.) */
+  /* ----- Contenu explicite -----
+   * Si le compte Apple bloque le contenu explicite, le lecteur retire ces titres
+   * de la file. On les signale au lieu de laisser une erreur incompréhensible. */
+  function restricted() {
+    try { return !!(music.restrictedEnabled || music.isRestricted); } catch (e) { return false; }
+  }
+  function isBlocked(t) {
+    return restricted() && t && t.attributes && t.attributes.contentRating === 'explicit';
+  }
+  function blockedNotice(tracks) {
+    var n = tracks.filter(isBlocked).length;
+    if (!n) return '';
+    return '<div class="notice">' + n + ' titre' + (n > 1 ? 's' : '') + ' sur ' + tracks.length +
+      ' sont marqués explicites et bloqués par les réglages de ton compte Apple. ' +
+      'Pour les écouter, autorise le contenu explicite (voir Réglages &gt; Aide).</div>';
+  }
+
+  /* ----- Lancer la lecture -----
+   * Le lecteur Apple ignore la position de départ demandée : on charge la liste,
+   * puis on saute nous-mêmes au bon morceau dans la file. */
   var lastPlayLog = [];
+  function trackKeys(t) {
+    var a = t && t.attributes || {};
+    var pp = a.playParams || {};
+    return [t && t.id, pp.id, pp.catalogId, pp.reportingId].filter(Boolean).map(String);
+  }
+  function findInQueue(t) {
+    var keys = trackKeys(t);
+    var name = t && t.attributes && t.attributes.name;
+    var items = [];
+    try { items = music.queue.items || []; } catch (e) {}
+    for (var i = 0; i < items.length; i++) {
+      var qi = items[i];
+      var qk = trackKeys(qi).concat([qi.songId, qi.container && qi.container.id].filter(Boolean).map(String));
+      for (var k = 0; k < keys.length; k++) if (qk.indexOf(keys[k]) >= 0) return i;
+    }
+    for (var j = 0; j < items.length; j++) {
+      if (name && items[j].attributes && items[j].attributes.name === name) return j;
+    }
+    return -1;
+  }
   function queueAttempts(items, start, container) {
     var list = [];
     var ct = container && container.type || '';
     if (container && container.id && /playlists|albums/.test(ct)) {
-      var o1 = { startWith: start };
+      var o1 = {};
       o1[/playlists/.test(ct) ? 'playlist' : 'album'] = container.id;
       list.push(['liste', o1]);
     }
-    var cat = items.map(function (t) {
-      var pp = t.attributes && t.attributes.playParams;
-      if (pp && pp.catalogId) return pp.catalogId;
-      return /^library-/.test(t.type) ? null : t.id;
-    });
-    if (cat.every(Boolean)) list.push(['catalogue', { songs: cat, startWith: start }]);
-    list.push(['éléments', { items: items.map(function (t) { return { id: t.id, type: t.type, attributes: t.attributes }; }), startWith: start }]);
+    var playable = items.filter(function (t) { return !isBlocked(t); });
+    list.push(['éléments', { items: playable.map(function (t) { return { id: t.id, type: t.type, attributes: t.attributes }; }) }]);
     var one = items[start] || items[0];
     var oneId = (one.attributes && one.attributes.playParams && one.attributes.playParams.catalogId) || one.id;
     list.push(['titre seul', { song: oneId }]);
@@ -646,26 +689,40 @@
     if (!e) return 'erreur';
     return ((e.errorCode ? e.errorCode + ' ' : '') + (e.message || e.name || String(e))).slice(0, 140);
   }
+  function friendlyError(e) {
+    var t = errText(e);
+    if (/CONTENT_EQUIVALENT|CONTENT_RESTRICTED/i.test(t)) return 'ce titre est bloqué par les réglages de ton compte Apple (contenu explicite).';
+    if (/NOT_FOUND/i.test(t)) return 'ce titre n\'est pas disponible dans ton pays.';
+    return t;
+  }
   function playItems(items, start, container) {
     if (!items.length) return;
     start = start || 0;
+    var target = items[start];
     var attempts = queueAttempts(items, start, container);
     lastPlayLog = [];
+    var lastErr = null;
     var i = 0;
     (function next() {
       if (i >= attempts.length) {
-        toast('Lecture impossible : ' + (lastPlayLog[lastPlayLog.length - 1] || 'erreur'));
+        toast('Lecture impossible : ' + friendlyError(lastErr));
         return;
       }
       var a = attempts[i++];
       Promise.resolve()
         .then(function () { return music.setQueue(a[1]); })
+        .then(function () {
+          if (a[0] === 'titre seul' || !target) return;
+          var idx = findInQueue(target);
+          if (idx > 0 && music.changeToMediaAtIndex) return music.changeToMediaAtIndex(idx);
+        })
         .then(function () { return music.play(); })
         .then(function () {
           lastPlayLog.push(a[0] + ' : OK');
           openPlayer();
         })
         .catch(function (e) {
+          lastErr = e;
           lastPlayLog.push(a[0] + ' : ' + errText(e));
           next();
         });
@@ -678,6 +735,7 @@
       .catch(function () { toast('Impossible de lancer cette radio.'); });
   }
   function playVideo(item) {
+    if (isBlocked(item)) { toast('Clip explicite bloqué par les réglages de ton compte Apple (voir Réglages > Aide).'); return; }
     Promise.resolve(music.setQueue({ musicVideo: item.id }))
       .then(function () { return music.play(); })
       .then(function () {
@@ -686,7 +744,7 @@
         root.classList.add('tv-hidden');
         toast('Vidéo en cours — touche Retour pour revenir');
       })
-      .catch(function () { toast('Impossible de lire cette vidéo.'); });
+      .catch(function (e) { toast('Impossible de lire cette vidéo : ' + friendlyError(e)); });
   }
   function exitVideo() {
     videoMode = false;
