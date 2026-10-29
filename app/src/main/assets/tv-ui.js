@@ -484,6 +484,7 @@
     });
     root.querySelector('#reload').onclick = function () { try { TVBridge.reloadUi(); } catch (e) { location.reload(); } };
     root.querySelector('#logout').onclick = function () {
+      forgetToken();
       Promise.resolve(music.unauthorize()).then(function () { viewLogin(); });
     };
     settle();
@@ -702,10 +703,8 @@
       '<div class="btns" style="justify-content:center"><div class="btn pri" data-f tabindex="0" id="login">Se connecter avec Apple</div></div></div>';
     root.querySelector('#login').onclick = function () {
       Promise.resolve(music.authorize()).then(function () {
-        // On recharge le site pour qu'il prenne en compte la connexion
-        // (sinon il affiche "Authorization failed" par-dessus l'interface).
-        try { sessionStorage.setItem('tv_just_logged', '1'); } catch (e) {}
-        try { TVBridge.reloadUi(); } catch (e) { location.reload(); }
+        saveToken();
+        tab = 'home'; stack = []; render();
       }).catch(function () { toast('Connexion annulée.'); });
     };
     focusEl(root.querySelector('#login'));
@@ -739,9 +738,47 @@
     on('nowPlayingItemDidChange', function () { updateMini(); if (playerOpen) drawPlayer(); });
     on('playbackStateDidChange', function () { updateMini(); if (playerOpen) drawPlayer(); });
     on('playbackTimeDidChange', updateProgress);
-    on('authorizationStatusDidChange', function () { if (!music.isAuthorized) viewLogin(); });
-    if (music.isAuthorized) { render(); } else { viewLogin(); }
+    on('authorizationStatusDidChange', function () {
+      if (music.isAuthorized) saveToken();
+      else if (!restoring) viewLogin();
+    });
     watchSiteDialogs();
+    if (music.isAuthorized) { saveToken(); render(); return; }
+    restoreToken();
+  }
+
+  /* ---------- Garder la connexion ----------
+   * Le site Apple oublie la connexion quand l'app se ferme.
+   * On garde donc le jeton de connexion dans la mémoire de l'app et on le lui redonne. */
+  var TOKEN_KEY = 'tv_music_user_token';
+  var restoring = false;
+  function saveToken() {
+    try {
+      var t = music.musicUserToken;
+      if (t) localStorage.setItem(TOKEN_KEY, t);
+    } catch (e) {}
+  }
+  function forgetToken() {
+    try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+  }
+  function restoreToken() {
+    var saved = null;
+    try { saved = localStorage.getItem(TOKEN_KEY); } catch (e) {}
+    if (!saved) { viewLogin(); return; }
+    restoring = true;
+    try { music.musicUserToken = saved; } catch (e) {}
+    // On vérifie que le jeton est toujours valable avec une petite requête.
+    api('/v1/me/storefront').then(function (d) {
+      restoring = false;
+      var s = Array.isArray(d) && d[0] && d[0].id;
+      if (s) sf = s;
+      if (music.isAuthorized) { render(); } else { forgetToken(); viewLogin(); }
+    }).catch(function () {
+      restoring = false;
+      forgetToken();
+      try { music.musicUserToken = ''; } catch (e) {}
+      viewLogin();
+    });
   }
 
   /* ---------- Fenêtres du site Apple ----------
@@ -759,16 +796,6 @@
         d.style.setProperty('display', 'none', 'important');
         if (seen && seen.has(d)) return;
         if (seen) seen.add(d);
-        if (/authoriz|log in|sign in|connect/i.test(text)) {
-          // Une seule tentative de resynchronisation par session.
-          var tried = false;
-          try { tried = sessionStorage.getItem('tv_resync') === '1'; } catch (e) {}
-          if (!tried && music && music.isAuthorized) {
-            try { sessionStorage.setItem('tv_resync', '1'); } catch (e) {}
-            try { TVBridge.reloadUi(); } catch (e) { location.reload(); }
-            return;
-          }
-        }
         console.log('[TV] fenêtre du site fermée : ' + text.slice(0, 120));
       });
     }
