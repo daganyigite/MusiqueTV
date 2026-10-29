@@ -59,9 +59,37 @@
     '#tvui .trk.blocked{opacity:.45}',
     '#tvui .ex{display:inline-block;margin-left:8px;padding:0 5px;border-radius:4px;background:#2A2C36;color:#C9CBD3;font-size:11px;font-weight:800;line-height:17px;vertical-align:2px}',
     '#tvui .notice{background:#1E2028;border-radius:12px;padding:14px 18px;margin-bottom:10px;color:#C9CBD3;font-size:14px;line-height:1.5}',
-    '#tvui .mini{position:fixed;left:220px;right:0;bottom:0;height:86px;background:#16171D;border-top:1px solid #1E2028;display:flex;align-items:center;gap:18px;padding:0 56px;outline:none}',
-    '#tvui .mini:focus{background:#1E2028;box-shadow:inset 0 0 0 3px #F2F2F4}',
-    '#tvui .mini .art{width:52px;height:52px;border-radius:8px;padding:0;font-size:0;flex-shrink:0}',
+    '#tvui .mini{position:fixed;left:220px;right:0;bottom:22px;display:flex;justify-content:center;pointer-events:none;z-index:3}',
+    '#tvui .pill{pointer-events:auto;width:100%;max-width:min(1000px,calc(100% - 48px));height:78px;display:flex;align-items:center;gap:4px;padding:0 14px;border-radius:39px;background:rgba(38,39,46,.94);border:1px solid rgba(255,255,255,.09);box-shadow:0 14px 40px rgba(0,0,0,.55)}',
+    '#tvui .mb{width:50px;height:50px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#F2F2F4;outline:none}',
+    '#tvui .mb.sm{color:#B9BBC4}',
+    '#tvui .mb.sm.act{color:var(--acc)}',
+    '#tvui .mb:focus{background:#F2F2F4;color:#0E0F13}',
+    '#tvui .mnow{flex:1;min-width:0;display:flex;align-items:center;gap:14px;padding:8px 14px 12px;margin:0 10px;border-radius:14px;position:relative;outline:none}',
+    '#tvui .mnow:focus{background:rgba(255,255,255,.13);box-shadow:inset 0 0 0 2px #F2F2F4}',
+    '#tvui .mnow .art{width:48px;height:48px;border-radius:7px;padding:0;font-size:0;flex-shrink:0}',
+    '#tvui .mtx{min-width:0;flex:1}',
+    '#tvui .mt{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '#tvui .ma{font-size:13px;color:#A6A8B2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}',
+    '#tvui .mnow .bar{position:absolute;left:76px;right:14px;bottom:5px;height:3px;margin:0;background:rgba(255,255,255,.18)}',
+    '#tvui .msep{width:1px;height:34px;background:rgba(255,255,255,.12);flex-shrink:0}',
+    '#tvui .qpanel{position:fixed;top:0;right:0;bottom:0;width:min(460px,42vw);z-index:8;display:flex;flex-direction:column;padding:34px 18px 24px;background:rgba(24,25,31,.98);border-left:1px solid rgba(255,255,255,.08);box-shadow:-24px 0 60px rgba(0,0,0,.55)}',
+    '#tvui .qhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 12px 16px}',
+    '#tvui .qhead h2{margin:0;font-size:24px}',
+    '#tvui .qlab{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#8E909A;margin:14px 12px 6px}',
+    '#tvui .qlist{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px}',
+    '#tvui .qlist::-webkit-scrollbar{display:none}',
+    '#tvui .qrow{display:flex;align-items:center;gap:14px;padding:8px 12px;border-radius:10px;outline:none}',
+    '#tvui .qrow.cur{background:rgba(255,255,255,.07)}',
+    '#tvui .qrow.cur .tt{color:var(--acc)}',
+    '#tvui .qrow:focus{background:#F2F2F4;color:#0E0F13}',
+    '#tvui .qrow:focus .ta,#tvui .qrow:focus .du{color:#4A4C55}',
+    '#tvui .qrow:focus.cur .tt{color:#0E0F13}',
+    '#tvui .qrow .art{width:48px;height:48px;border-radius:6px;padding:0;font-size:0;flex-shrink:0}',
+    '#tvui .qrow .tx{flex:1;min-width:0}',
+    '#tvui .qrow .tt{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '#tvui .qrow .ta{font-size:13px;color:#9A9CA6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '#tvui .qrow .du{font-size:13px;color:#9A9CA6}',
     '#tvui .bar{flex:1;height:5px;border-radius:3px;background:#2A2C36;margin:0 24px;overflow:hidden}',
     '#tvui .bar i{display:block;height:100%;background:var(--acc);width:0}',
     '#tvui .player{position:fixed;inset:0;background:#0E0F13;display:flex;gap:5vw;padding:7vh 6vw;z-index:5;overflow:hidden}',
@@ -98,7 +126,7 @@
     '#tvui .msg{color:#9A9CA6;font-size:16px;padding:20px 0}',
     '#tvui .swatch{width:52px;height:52px;border-radius:50%;outline:none}',
     '#tvui .swatch:focus{outline:4px solid #F2F2F4;outline-offset:4px}',
-    '@media (max-width:1100px){#tvui .queue{display:none}#tvui .ctrls{gap:14px}#tvui .cb.pp{width:72px;height:72px}#tvui .main{padding:36px 36px 120px}}'
+    '@media (max-width:1100px){#tvui .queue{display:none}#tvui .mb.sm{display:none}#tvui .mb.sm.keep{display:flex}#tvui .qpanel{width:60vw}#tvui .ctrls{gap:14px}#tvui .cb.pp{width:72px;height:72px}#tvui .main{padding:36px 36px 120px}}'
   ].join('');
 
   /* ---------- Icônes ---------- */
@@ -111,7 +139,8 @@
     library: 'M4 4v16M9 4v16M14 4l5 15.5',
     settings: 'M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4',
     shuffle: 'M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5',
-    repeat: 'M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3'
+    repeat: 'M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3',
+    list: 'M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01'
   };
   function icon(name, size) {
     size = size || 22;
@@ -177,8 +206,9 @@
   var lastFocus = null;
 
   /* ---------- Navigation télécommande ---------- */
+  function topLayer() { return root.querySelector('.qpanel') || root.querySelector('.player') || root; }
   function focusables() {
-    var scope = root.querySelector('.player') || root;
+    var scope = topLayer();
     return Array.prototype.filter.call(scope.querySelectorAll('[data-f]'), function (el) {
       var r = el.getBoundingClientRect();
       return r.width > 0 && r.height > 0;
@@ -186,8 +216,8 @@
   }
   function focusEl(el) {
     if (!el) return;
-    var pl = root.querySelector('.player');
-    if (pl && !pl.contains(el)) return; // le lecteur plein écran garde le focus
+    var layer = topLayer();
+    if (layer !== root && !layer.contains(el)) return; // le panneau ou le lecteur garde le focus
     el.focus({ preventScroll: true });
     el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     lastFocus = el;
@@ -249,6 +279,7 @@
   window.__tvBack = function () {
     if (signingIn) { viewLogin(); return true; }
     if (videoMode) { exitVideo(); return true; }
+    if (queueOpen) { closeQueue(); return true; }
     if (playerOpen) { closePlayer(); return true; }
     if (stack.length) { stack.pop(); render(); return true; }
     if (tab !== 'home') { tab = 'home'; render(); return true; }
@@ -306,6 +337,7 @@
       root.appendChild(p);
       drawPlayer();
     }
+    if (queueOpen) drawQueue(false);
   }
 
   function bindCommon() {
@@ -313,7 +345,15 @@
       el.onclick = function () { tab = el.getAttribute('data-tab'); stack = []; render(); };
     });
     var mini = root.querySelector('.mini');
-    if (mini) mini.onclick = openPlayer;
+    if (mini) {
+      mini.querySelector('#mnow').onclick = openPlayer;
+      mini.querySelector('#mp').onclick = togglePlay;
+      mini.querySelector('#mnx').onclick = function () { music.skipToNextItem(); };
+      mini.querySelector('#mpr').onclick = prevTrack;
+      mini.querySelector('#msh').onclick = function () { setShuffle(!(music.shuffleMode === 1)); updateMini(); };
+      mini.querySelector('#mrp').onclick = cycleRepeat;
+      mini.querySelector('#mq').onclick = function () { openQueue(this); };
+    }
     updateMini();
   }
 
@@ -641,9 +681,9 @@
       '<div class="tracks">' + blockedNotice(tracks) + tracks.map(function (t, i) {
         var a = t.attributes;
         var blocked = isBlocked(t);
-        return '<div class="trk' + (blocked ? ' blocked' : '') + '" data-f tabindex="0" data-i="' + i + '"><span class="n">' + (i + 1) + '</span>' +
+        return '<div class="trk" data-f tabindex="0" data-i="' + i + '"><span class="n">' + (i + 1) + '</span>' +
           '<div class="art" style="' + artStyle(a, 100, a.name) + '"></div>' +
-          '<div class="tx"><div class="tt">' + esc(a.name) + (a.contentRating === 'explicit' ? '<span class="ex">E</span>' : '') + '</div><div class="ta">' + esc(a.artistName) + (blocked ? ' · bloqué par ton compte Apple' : '') + '</div></div>' +
+          '<div class="tx"><div class="tt">' + esc(a.name) + (a.contentRating === 'explicit' ? '<span class="ex">E</span>' : '') + '</div><div class="ta">' + esc(a.artistName) + (blocked ? ' · version non censurée si elle existe' : '') + '</div></div>' +
           '<span class="du">' + fmtMs(a.durationInMillis) + '</span></div>';
       }).join('') + (tracks.length ? '' : '<p class="msg">Liste vide.</p>') + '</div></div>';
     shell(html);
@@ -655,7 +695,6 @@
     root.querySelectorAll('.trk').forEach(function (el) {
       el.onclick = function () {
         var idx = +el.getAttribute('data-i');
-        if (isBlocked(tracks[idx])) { toast('Titre explicite bloqué par les réglages de ton compte Apple.'); return; }
         playItems(tracks, idx, item);
       };
     });
@@ -679,8 +718,8 @@
     var n = tracks.filter(isBlocked).length;
     if (!n) return '';
     return '<div class="notice">' + n + ' titre' + (n > 1 ? 's' : '') + ' sur ' + tracks.length +
-      ' sont marqués explicites et bloqués par les réglages de ton compte Apple. ' +
-      'Pour les écouter, autorise le contenu explicite (voir Réglages &gt; Aide).</div>';
+      ' sont explicites. Ton compte Apple joue leur version non censurée quand elle existe et saute les autres. ' +
+      'Pour tout écouter en version originale, voir Réglages &gt; Aide.</div>';
   }
 
   /* ----- Lancer la lecture -----
@@ -728,7 +767,7 @@
   }
   function friendlyError(e) {
     var t = errText(e);
-    if (/CONTENT_EQUIVALENT|CONTENT_RESTRICTED/i.test(t)) return 'ce titre est bloqué par les réglages de ton compte Apple (contenu explicite).';
+    if (/CONTENT_EQUIVALENT|CONTENT_RESTRICTED/i.test(t)) return 'contenu explicite bloqué par ton compte Apple, sans version non censurée (voir Réglages > Aide).';
     if (/NOT_FOUND/i.test(t)) return 'ce titre n\'est pas disponible dans ton pays.';
     return t;
   }
@@ -772,7 +811,6 @@
       .catch(function () { toast('Impossible de lancer cette radio.'); });
   }
   function playVideo(item) {
-    if (isBlocked(item)) { toast('Clip explicite bloqué par les réglages de ton compte Apple (voir Réglages > Aide).'); return; }
     Promise.resolve(music.setQueue({ musicVideo: item.id }))
       .then(function () { return music.play(); })
       .then(function () {
@@ -803,9 +841,18 @@
   function itemAttrs(it) { return it ? (it.attributes || it) : {}; }
 
   function miniHtml() {
-    return '<div class="mini" data-f tabindex="0" style="display:none"><div class="art"></div>' +
-      '<div style="min-width:0;max-width:340px"><div class="ct" id="mt"></div><div class="cs" id="ma" style="margin-top:2px"></div></div>' +
-      '<div class="bar"><i id="mb"></i></div><div id="mp" style="width:48px;height:48px;border-radius:50%;background:#F2F2F4;color:#0E0F13;display:flex;align-items:center;justify-content:center"></div></div>';
+    return '<div class="mini" style="display:none"><div class="pill">' +
+      '<div class="mb sm" data-f tabindex="0" id="msh" aria-label="Aléatoire">' + icon('shuffle', 20) + '</div>' +
+      '<div class="mb" data-f tabindex="0" id="mpr" aria-label="Précédent">' + SVG_PREV + '</div>' +
+      '<div class="mb keep" data-f tabindex="0" id="mp" aria-label="Lecture"></div>' +
+      '<div class="mb" data-f tabindex="0" id="mnx" aria-label="Suivant">' + SVG_NEXT + '</div>' +
+      '<div class="mb sm" data-f tabindex="0" id="mrp" aria-label="Répéter">' + icon('repeat', 20) + '</div>' +
+      '<div class="mnow" data-f tabindex="0" id="mnow"><div class="art"></div>' +
+      '<div class="mtx"><div class="mt" id="mt"></div><div class="ma" id="ma"></div></div>' +
+      '<div class="bar"><i id="mb"></i></div></div>' +
+      '<div class="msep"></div>' +
+      '<div class="mb sm keep" data-f tabindex="0" id="mq" aria-label="En attente">' + icon('list', 22) + '</div>' +
+      '</div></div>';
   }
   function updateMini() {
     var mini = root.querySelector('.mini');
@@ -816,10 +863,87 @@
     mini.style.display = 'flex';
     mini.querySelector('.art').setAttribute('style', artStyle(a, 120, a.name));
     mini.querySelector('#mt').textContent = a.name || '';
-    mini.querySelector('#ma').textContent = a.artistName || '';
+    mini.querySelector('#ma').textContent = [a.artistName, a.albumName].filter(Boolean).join(' — ');
     mini.querySelector('#mp').innerHTML = music.isPlaying ? SVG_PAUSE : SVG_PLAY;
+    var sh = false, rp = 0;
+    try { sh = music.shuffleMode === 1; rp = music.repeatMode; } catch (e) {}
+    mini.querySelector('#msh').classList.toggle('act', sh);
+    mini.querySelector('#mrp').classList.toggle('act', !!rp);
+    if (queueOpen) markQueueCurrent();
     updateProgress();
   }
+  function togglePlay() { music.isPlaying ? music.pause() : music.play(); }
+  function prevTrack() {
+    if ((music.currentPlaybackTime || 0) > 4) music.seekToTime(0); else music.skipToPreviousItem();
+  }
+  function cycleRepeat() {
+    try { music.repeatMode = (music.repeatMode + 1) % 3; } catch (e) {}
+    updateMini();
+    if (playerOpen) drawPlayer();
+  }
+
+  /* ---------- Panneau « En attente » ---------- */
+  var queueOpen = false;
+  var queueOpener = null;
+  function openQueue(from) {
+    if (!nowItem()) return;
+    queueOpen = true;
+    queueOpener = from && from.id ? from.id : null;
+    drawQueue(true);
+  }
+  function closeQueue() {
+    queueOpen = false;
+    var q = root.querySelector('.qpanel'); if (q) q.remove();
+    var back = (queueOpener && root.querySelector('#' + queueOpener)) || root.querySelector('.player #pp') || root.querySelector('#mq');
+    focusEl(back);
+  }
+  function drawQueue(focusCurrent) {
+    var old = root.querySelector('.qpanel'); if (old) old.remove();
+    var items = [], pos = 0;
+    try { items = music.queue.items || []; pos = music.queue.position; } catch (e) {}
+    var start = Math.max(0, pos);
+    var end = Math.min(items.length, start + 60);
+    var html = '<div class="qhead"><div><h2>En attente</h2><span class="sub">' + Math.max(0, items.length - start - 1) + ' titres à suivre</span></div>' +
+      '<div class="btn" data-f tabindex="0" id="qclose" style="height:44px;padding:0 20px;font-size:15px">Fermer</div></div><div class="qlist">';
+    for (var i = start; i < end; i++) {
+      var x = itemAttrs(items[i]);
+      if (i === start) html += '<div class="qlab">Lecture en cours</div>';
+      if (i === start + 1) html += '<div class="qlab">À suivre</div>';
+      html += '<div class="qrow' + (i === pos ? ' cur' : '') + '" data-f tabindex="0" data-q="' + i + '">' +
+        '<div class="art" style="' + artStyle(x, 100, x.name) + '"></div>' +
+        '<div class="tx"><div class="tt">' + esc(x.name) + '</div><div class="ta">' + esc(x.artistName) + '</div></div>' +
+        '<span class="du">' + fmtMs(x.durationInMillis) + '</span></div>';
+    }
+    if (end - start <= 1) html += '<p class="sub" style="margin:12px">Rien après ce titre.</p>';
+    html += '</div>';
+    var panel = document.createElement('div');
+    panel.className = 'qpanel';
+    panel.innerHTML = html;
+    root.appendChild(panel);
+    panel.querySelectorAll('.qrow').forEach(function (el) {
+      el.onclick = function () {
+        var idx = +el.getAttribute('data-q');
+        Promise.resolve(idx === music.queue.position ? null : music.changeToMediaAtIndex(idx))
+          .then(function () { return music.play(); })
+          .catch(function (e) { toast('Lecture impossible : ' + friendlyError(e)); });
+      };
+    });
+    panel.querySelector('#qclose').onclick = closeQueue;
+    if (focusCurrent) focusEl(panel.querySelector('.qrow.cur + .qlab + .qrow') || panel.querySelector('.qrow') || panel.querySelector('#qclose'));
+  }
+  function markQueueCurrent() {
+    var panel = root.querySelector('.qpanel');
+    if (!panel) return;
+    var pos = -1;
+    try { pos = music.queue.position; } catch (e) {}
+    var cur = panel.querySelector('.qrow.cur');
+    if (cur && +cur.getAttribute('data-q') === pos) return;
+    // Le morceau a changé : on redessine en gardant le focus dans le panneau.
+    var had = panel.contains(document.activeElement);
+    drawQueue(false);
+    if (had) focusEl(root.querySelector('.qpanel .qrow.cur') || root.querySelector('.qpanel .qrow'));
+  }
+
   function updateProgress() {
     var d = music.currentPlaybackDuration || 0, t = music.currentPlaybackTime || 0;
     var pct = d ? Math.min(100, (t / d) * 100) : 0;
@@ -849,7 +973,7 @@
     playerOpen = false;
     var p = root.querySelector('.player'); if (p) p.remove();
     updateMini();
-    focusEl(root.querySelector('.mini') && root.querySelector('.mini').style.display !== 'none' ? root.querySelector('.mini') : root.querySelector('.main [data-f]'));
+    focusEl(root.querySelector('.mini') && root.querySelector('.mini').style.display !== 'none' ? root.querySelector('#mnow') : root.querySelector('.main [data-f]'));
   }
   function drawPlayer() {
     var p = root.querySelector('.player');
@@ -879,6 +1003,7 @@
       '<div class="cb pp" data-f tabindex="0" id="pp">' + (music.isPlaying ? SVG_PAUSE : SVG_PLAY) + '</div>' +
       '<div class="cb" data-f tabindex="0" id="pnx">' + SVG_NEXT + '</div>' +
       '<div class="cb sm' + (repeat ? ' act' : '') + '" data-f tabindex="0" id="prp">' + icon('repeat') + (repeat === 1 ? '<span style="font-size:11px;font-weight:800;margin-left:-4px">1</span>' : '') + '</div>' +
+      '<div class="cb sm" data-f tabindex="0" id="pq" aria-label="En attente">' + icon('list') + '</div>' +
       '</div></div></div>' +
       '<div class="queue"><h2 style="margin:0 0 6px">À suivre</h2>' +
       (q.length ? q.map(function (it) {
@@ -898,7 +1023,8 @@
       if ((music.currentPlaybackTime || 0) > 4) music.seekToTime(0); else music.skipToPreviousItem();
     };
     p.querySelector('#psh').onclick = function () { setShuffle(!(music.shuffleMode === 1)); this.classList.toggle('act', music.shuffleMode === 1); };
-    p.querySelector('#prp').onclick = function () { try { music.repeatMode = (music.repeatMode + 1) % 3; } catch (e) {} drawPlayer(); };
+    p.querySelector('#prp').onclick = cycleRepeat;
+    p.querySelector('#pq').onclick = function () { openQueue(this); };
     updateProgress();
     var f = p.querySelector('#' + focusedId) || p.querySelector('#pp');
     focusEl(f);
