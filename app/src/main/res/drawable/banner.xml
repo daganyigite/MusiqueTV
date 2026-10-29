@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bannière affichée dans la rangée d'applis de Google TV (format 16:9) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:fillColor="#0E0F13" android:pathData="M0,0h320v180H0z" />
+    <path android:fillColor="#7DD3B8" android:pathData="M120,50h80a10,10 0 0 1 10,10v60a10,10 0 0 1 -10,10h-80a10,10 0 0 1 -10,-10V60a10,10 0 0 1 10,-10z" />
+    <path android:strokeColor="#0E0F13" android:strokeWidth="6" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M150,112V72l30,-7v40" />
+    <path android:fillColor="#0E0F13" android:pathData="M142,112m-9,0a9,9 0 1 0 18,0a9,9 0 1 0 -18,0" />
+    <path android:fillColor="#0E0F13" android:pathData="M172,105m-9,0a9,9 0 1 0 18,0a9,9 0 1 0 -18,0" />
+</vector>
