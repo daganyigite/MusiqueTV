@@ -19,6 +19,9 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.TextView
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
  * Musique TV
@@ -175,6 +178,40 @@ class MainActivity : Activity() {
         fun reloadUi() {
             runOnUiThread { web.loadUrl(START_URL) }
         }
+
+        /**
+         * Requête HTTP faite par Android (le site Apple bloque les appels vers d'autres sites).
+         * Limité volontairement à l'API de paroles LRCLIB.
+         */
+        @JavascriptInterface
+        fun httpGet(id: String, url: String) {
+            if (!url.startsWith("https://lrclib.net/api/")) {
+                sendHttp(id, 0, "")
+                return
+            }
+            Thread {
+                var code = 0
+                var body = ""
+                try {
+                    val c = URL(url).openConnection() as HttpURLConnection
+                    c.setRequestProperty("User-Agent", "MusiqueTV/1.0 (https://github.com/daganyigite/MusiqueTV)")
+                    c.connectTimeout = 8000
+                    c.readTimeout = 10000
+                    code = c.responseCode
+                    val stream = if (code in 200..399) c.inputStream else c.errorStream
+                    body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+                    c.disconnect()
+                } catch (e: Exception) {
+                    code = 0
+                }
+                sendHttp(id, code, body)
+            }.start()
+        }
+    }
+
+    private fun sendHttp(id: String, code: Int, body: String) {
+        val js = "window.__tvHttp && window.__tvHttp(" + JSONObject.quote(id) + "," + code + "," + JSONObject.quote(body) + ")"
+        runOnUiThread { web.evaluateJavascript(js, null) }
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
