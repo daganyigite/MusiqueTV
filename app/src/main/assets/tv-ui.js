@@ -29,7 +29,7 @@
       opts: [['0', 'Non, rester sur la page'], ['1', 'Oui']] },
     { k: 'idle', sec: 'Lecture', label: 'Lecteur plein écran après inactivité', def: '0',
       opts: [['0', 'Jamais'], ['60', 'Après 1 min'], ['180', 'Après 3 min'], ['300', 'Après 5 min']] },
-    { k: 'fade', sec: 'Lecture', label: 'Fondu enchaîné entre les titres', def: '0',
+    { k: 'fade', sec: 'Lecture', label: 'Fondu enchaîné (aussi en « répéter ce morceau »)', def: '0',
       opts: [['0', 'Désactivé'], ['3', '3 secondes'], ['6', '6 secondes'], ['10', '10 secondes']] },
     { k: 'stallfix', sec: 'Lecture', label: 'Relancer un titre qui se bloque', def: '1',
       opts: [['1', 'Activé'], ['0', 'Désactivé']] },
@@ -37,6 +37,12 @@
       opts: [['0', 'Affichés'], ['1', 'Masqués']] },
     { k: 'toasts', sec: 'Lecture', label: 'Messages à l\'écran', def: '1',
       opts: [['1', 'Affichés'], ['0', 'Seulement les erreurs']] },
+    { k: 'lyrauto', sec: 'Paroles', label: 'Afficher les paroles en ouvrant le lecteur', def: '0',
+      opts: [['0', 'Non'], ['1', 'Oui']] },
+    { k: 'lyrsize', sec: 'Paroles', label: 'Taille des paroles', def: '1',
+      opts: [['0.85', 'Petite'], ['1', 'Normale'], ['1.2', 'Grande'], ['1.45', 'Très grande']] },
+    { k: 'lyroffset', sec: 'Paroles', label: 'Décalage des paroles', def: '0',
+      opts: [['-1', '1 s plus tôt'], ['-0.5', '0,5 s plus tôt'], ['0', 'Aucun'], ['0.5', '0,5 s plus tard'], ['1', '1 s plus tard']] },
     { k: 'video', sec: 'Vidéo', label: 'Lecteur vidéo', def: 'app',
       opts: [['app', 'Celui de l\'app'], ['apple', 'Celui d\'Apple']] }
   ];
@@ -199,6 +205,23 @@
     '#tvui .player .cb.pp{background:#F2F2F4}',
     '#tvui .player .bar{background:rgba(255,255,255,.22)}',
     '#tvui .seek{padding:12px 0;margin:-12px 0 0;border-radius:10px;outline:none}',
+    '#tvui .lyrics{position:relative;z-index:1;flex:1.25;min-width:0;overflow:hidden;-webkit-mask-image:linear-gradient(transparent 0,#000 18%,#000 72%,transparent 100%);mask-image:linear-gradient(transparent 0,#000 18%,#000 72%,transparent 100%)}',
+    '#tvui .lyrin{transition:transform .45s ease;padding:30vh 0 50vh}',
+    '#tvui .ly{margin:0 0 .55em;font-size:calc(clamp(22px,2.7vw,36px) * var(--lyr,1));font-weight:800;line-height:1.25;color:rgba(255,255,255,.32);transition:color .3s,transform .3s;transform-origin:left center}',
+    '#tvui .ly.past{color:rgba(255,255,255,.5)}',
+    '#tvui .ly.cur{color:#fff;transform:scale(1.04)}',
+    '#tvui .ly.plain{color:rgba(255,255,255,.85);font-size:calc(clamp(18px,2vw,26px) * var(--lyr,1));margin:0 0 .3em}',
+    '#tvui .lyrmsg{color:rgba(255,255,255,.65);font-size:18px;margin:0 0 18px}',
+    '#tvui .player.lyr .queue{display:none}',
+    '#tvui .player.lyr .pmain{flex:0 0 auto;max-width:44%;flex-direction:column;align-items:flex-start;gap:22px}',
+    '#tvui .player.lyr .big{width:min(30vh,18vw);height:min(30vh,18vw)}',
+    '#tvui .player.lyr .pinfo{width:100%}',
+    '#tvui .player.lyr .ptitle{font-size:clamp(22px,2.6vw,34px)}',
+    '#tvui .player.lyr .ctrls{gap:8px;flex-wrap:nowrap}',
+    '#tvui .player.lyr .cb{width:50px;height:50px}',
+    '#tvui .player.lyr .cb.sm{width:42px;height:42px}',
+    '#tvui .player.lyr .cb.pp{width:66px;height:66px}',
+    '#tvui .player.lyr .lyrics{padding-left:2vw}',
     '#tvui .seek .bar{position:relative;margin:0;height:6px;overflow:visible;transition:height .15s}',
     '#tvui .seek .bar i{border-radius:3px}',
     '#tvui .knob{position:absolute;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:#F2F2F4;box-shadow:0 2px 8px rgba(0,0,0,.5);opacity:0;transition:opacity .15s}',
@@ -255,7 +278,8 @@
     album: 'M4 4h16v16H4zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 11.5v1',
     note: 'M9 18V5l12-2v13M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 19a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
     person: 'M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM4 21a8 8 0 0 1 16 0',
-    grid: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z'
+    grid: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
+    lyrics: 'M4 5h16v11H9l-5 4zM8 9h8M8 12h5'
   };
   function icon(name, size) {
     size = size || 22;
@@ -310,6 +334,7 @@
     root.style.zoom = setting('scale');
     root.style.setProperty('--blur', setting('blur') + 'px');
     root.style.setProperty('--dim', setting('bgdim'));
+    root.style.setProperty('--lyr', setting('lyrsize'));
     root.classList.toggle('noanim', setting('anim') === '0');
     root.classList.toggle('noclock', setting('clock') === '0');
   }
@@ -504,7 +529,7 @@
   /* ---------- Fondu enchaîné ----------
    * Le lecteur Apple ne lit qu'un titre à la fois : on baisse doucement le son à la fin
    * d'un titre et on le remonte doucement au début du suivant. */
-  var fadeBase = 1, fadeIn = 0, fading = false;
+  var fadeBase = 1, fadeIn = 0, fading = false, fadeLastT = 0;
   function onTrackChange() {
     var f = +setting('fade');
     if (!f || videoMode || !music) return;
@@ -520,14 +545,16 @@
     }
     if (!fading && !fadeIn) { try { if (music.volume > 0.2) fadeBase = music.volume; } catch (e) {} }
     var t = music.currentPlaybackTime || 0, d = music.currentPlaybackDuration || 0;
-    var rp = 0; try { rp = music.repeatMode; } catch (e) {}
+    // Reboucle (répéter ce morceau) : le titre repart de 0 -> fondu d'entrée aussi.
+    if (fadeLastT > 0 && d && fadeLastT > d - f - 1 && t < 1.5 && !fadeIn) fadeIn = Date.now();
+    fadeLastT = t;
     var vol = null;
     if (fadeIn) {
       var inDur = Math.max(1.5, f / 2) * 1000;
       var pr = (Date.now() - fadeIn) / inDur;
       if (pr >= 1) { fadeIn = 0; vol = fadeBase; } else vol = Math.max(0.05, pr) * fadeBase;
     }
-    if (music.isPlaying && d > f * 3 && rp !== 1 && d - t <= f && pendingSeek == null) {
+    if (music.isPlaying && d > f * 3 && d - t <= f && pendingSeek == null) {
       fading = true;
       var out = Math.max(0.05, (d - t) / f) * fadeBase;
       vol = vol == null ? out : Math.min(vol, out);
@@ -697,6 +724,7 @@
       mini.querySelector('#msh').onclick = function () { setShuffle(!(music.shuffleMode === 1)); updateMini(); };
       mini.querySelector('#mrp').onclick = cycleRepeat;
       mini.querySelector('#mq').onclick = function () { openQueue(this); };
+      mini.querySelector('#mly').onclick = function () { openPlayer(true); };
     }
     updateMini();
   }
@@ -1418,6 +1446,7 @@
       '<div class="mtx"><div class="mt" id="mt"></div><div class="ma" id="ma"></div></div>' +
       '<div class="bar"><i id="mb"></i></div></div>' +
       '<div class="msep"></div>' +
+      '<div class="mb sm keep" data-f tabindex="0" id="mly" aria-label="Paroles">' + icon('lyrics', 21) + '</div>' +
       '<div class="mb sm keep" data-f tabindex="0" id="mq" aria-label="En attente">' + icon('list', 22) + '</div>' +
       '</div></div>';
   }
@@ -1553,9 +1582,11 @@
   }
 
   /* ---------- Lecteur plein écran ---------- */
-  function openPlayer() {
+  function openPlayer(withLyrics) {
     if (!nowItem()) return;
     playerOpen = true;
+    if (withLyrics === true) lyricsOn = true;
+    else if (setting('lyrauto') === '1') lyricsOn = true;
     var old = root.querySelector('.player'); if (old) old.remove();
     var p = document.createElement('div');
     p.className = 'player';
@@ -1598,8 +1629,10 @@
       '<div class="cb pp" data-f tabindex="0" id="pp">' + (music.isPlaying ? SVG_PAUSE : SVG_PLAY) + '</div>' +
       '<div class="cb" data-f tabindex="0" id="pnx">' + SVG_NEXT + '</div>' +
       '<div class="cb sm' + (repeat ? ' act' : '') + '" data-f tabindex="0" id="prp">' + icon('repeat') + (repeat === 1 ? '<span class="r1" style="right:12px;bottom:12px">1</span>' : '') + '</div>' +
+      '<div class="cb sm' + (lyricsOn ? ' act' : '') + '" data-f tabindex="0" id="plyr" aria-label="Paroles">' + icon('lyrics') + '</div>' +
       '<div class="cb sm" data-f tabindex="0" id="pq" aria-label="En attente">' + icon('list') + '</div>' +
       '</div></div></div>' +
+      (lyricsOn ? lyricsHtml() : '') +
       '<div class="queue"><h2 style="margin:0 0 6px">À suivre</h2>' +
       (q.length ? q.map(function (it) {
         var x = itemAttrs(it);
@@ -1621,9 +1654,130 @@
     p.querySelector('#psh').onclick = function () { setShuffle(!(music.shuffleMode === 1)); this.classList.toggle('act', music.shuffleMode === 1); };
     p.querySelector('#prp').onclick = cycleRepeat;
     p.querySelector('#pq').onclick = function () { openQueue(this); };
+    p.querySelector('#plyr').onclick = toggleLyrics;
+    p.classList.toggle('lyr', lyricsOn);
+    if (lyricsOn) loadLyricsInto();
     updateProgress();
     var f = p.querySelector('#' + focusedId) || p.querySelector('#pp');
     focusEl(f);
+  }
+
+  /* ---------- Paroles synchronisées (LRCLIB, lrclib.net) ----------
+   * Le site Apple bloque les appels vers d'autres sites : la demande passe par la partie
+   * Android de l'app (TVBridge.httpGet), qui ne contacte que lrclib.net. */
+  var httpWait = {}, httpSeq = 0;
+  window.__tvHttp = function (id, status, body) {
+    var cb = httpWait[id]; delete httpWait[id];
+    if (cb) cb(status, body);
+  };
+  function httpGet(url) {
+    return new Promise(function (resolve, reject) {
+      if (window.TVBridge && TVBridge.httpGet) {
+        var id = 'h' + (++httpSeq);
+        httpWait[id] = function (status, body) { resolve({ status: status, body: body }); };
+        setTimeout(function () { if (httpWait[id]) { delete httpWait[id]; reject(new Error('délai dépassé')); } }, 12000);
+        try { TVBridge.httpGet(id, url); } catch (e) { delete httpWait[id]; reject(e); }
+      } else {
+        fetch(url).then(function (r) { return r.text().then(function (b) { resolve({ status: r.status, body: b }); }); }, reject);
+      }
+    });
+  }
+  function cleanName(n) {
+    return String(n || '').replace(/\s*[\(\[](feat|ft|with|avec)\.?[^\)\]]*[\)\]]/ig, '')
+      .replace(/\s*-\s*(single|ep)$/i, '').replace(/\s*\[[^\]]*\]/g, '').trim();
+  }
+  function parseLRC(txt) {
+    var out = [];
+    String(txt || '').split(/\r?\n/).forEach(function (line) {
+      var stamps = [], m, re = /\[(\d+):(\d+(?:[.:]\d+)?)\]/g, last = 0;
+      while ((m = re.exec(line))) { stamps.push(+m[1] * 60 + parseFloat(m[2].replace(':', '.'))); last = re.lastIndex; }
+      var text = line.slice(last).trim();
+      stamps.forEach(function (t) { out.push({ t: t, text: text }); });
+    });
+    return out.sort(function (a, b) { return a.t - b.t; });
+  }
+  var lyricsCache = {};
+  function getLyrics(item) {
+    var a = itemAttrs(item);
+    var key = (item && item.id) || a.name;
+    if (lyricsCache[key]) return lyricsCache[key];
+    var dur = a.durationInMillis ? Math.round(a.durationInMillis / 1000) : 0;
+    var base = 'https://lrclib.net/api/';
+    var q = function (o) { return Object.keys(o).filter(function (k) { return o[k]; }).map(function (k) { return k + '=' + encodeURIComponent(o[k]); }).join('&'); };
+    var pick = function (j) {
+      if (!j) return null;
+      if (j.instrumental) return { instrumental: true };
+      if (j.syncedLyrics) return { synced: parseLRC(j.syncedLyrics) };
+      if (j.plainLyrics) return { plain: j.plainLyrics };
+      return null;
+    };
+    var p = httpGet(base + 'get?' + q({ track_name: a.name, artist_name: a.artistName, album_name: cleanName(a.albumName), duration: dur }))
+      .then(function (r) {
+        if (r.status === 200) { var x = pick(JSON.parse(r.body)); if (x && !x.plain) return x; }
+        return httpGet(base + 'search?' + q({ track_name: cleanName(a.name), artist_name: (a.artistName || '').split(/,|&| et | x /i)[0].trim() }))
+          .then(function (r2) {
+            var list = []; try { list = JSON.parse(r2.body) || []; } catch (e) {}
+            list.sort(function (x, y) {
+              var dx = Math.abs((x.duration || 0) - dur), dy = Math.abs((y.duration || 0) - dur);
+              return (y.syncedLyrics ? 1 : 0) - (x.syncedLyrics ? 1 : 0) || dx - dy;
+            });
+            var best = list.filter(function (x) { return !dur || !x.duration || Math.abs(x.duration - dur) < 8; })[0] || list[0];
+            return pick(best) || { none: true };
+          });
+      })
+      .catch(function () { delete lyricsCache[key]; return { error: true }; });
+    lyricsCache[key] = p;
+    return p;
+  }
+  var lyricsOn = false, lyrData = null, lyrFor = null, lyrIdx = -2;
+  function lyricsHtml() {
+    return '<div class="lyrics" id="lyrbox"><div class="lyrin" id="lyrin"><p class="lyrmsg">Recherche des paroles…</p></div></div>';
+  }
+  function loadLyricsInto() {
+    var it = nowItem();
+    var box = root.querySelector('#lyrin');
+    if (!box || !it) return;
+    var key = it.id;
+    lyrFor = key; lyrIdx = -2;
+    getLyrics(it).then(function (L) {
+      if (lyrFor !== key || !root.querySelector('#lyrin')) return;
+      lyrData = L;
+      var b = root.querySelector('#lyrin');
+      if (L.synced && L.synced.length) {
+        b.innerHTML = L.synced.map(function (l, i) { return '<p class="ly" data-l="' + i + '">' + (l.text ? esc(l.text) : '♪') + '</p>'; }).join('');
+      } else if (L.plain) {
+        b.innerHTML = '<p class="lyrmsg">Paroles non synchronisées</p>' + L.plain.split(/\n/).map(function (l) { return '<p class="ly plain">' + (esc(l) || '&nbsp;') + '</p>'; }).join('');
+      } else if (L.instrumental) {
+        b.innerHTML = '<p class="lyrmsg">Morceau instrumental ♪</p>';
+      } else {
+        b.innerHTML = '<p class="lyrmsg">' + (L.error ? 'Impossible de joindre LRCLIB.' : 'Paroles introuvables pour ce titre.') + '</p>';
+      }
+      syncLyrics(true);
+    });
+  }
+  function syncLyrics(force) {
+    if (!lyricsOn || !lyrData || !lyrData.synced) return;
+    var box = root.querySelector('#lyrbox'), inner = root.querySelector('#lyrin');
+    if (!box || !inner) return;
+    var t = (pendingSeek != null ? pendingSeek : (music.currentPlaybackTime || 0)) - (+setting('lyroffset') || 0) + 0.15;
+    var L = lyrData.synced, idx = -1;
+    for (var i = 0; i < L.length; i++) { if (L[i].t <= t) idx = i; else break; }
+    if (idx === lyrIdx && !force) return;
+    lyrIdx = idx;
+    var ps = inner.children;
+    for (var j = 0; j < ps.length; j++) {
+      ps[j].className = 'ly' + (j === idx ? ' cur' : j < idx ? ' past' : '');
+    }
+    var cur = ps[Math.max(0, idx)];
+    if (cur) {
+      var y = cur.offsetTop - box.clientHeight * 0.38 + cur.offsetHeight / 2;
+      inner.style.transform = 'translateY(' + (-Math.max(0, y)) + 'px)';
+    }
+  }
+  setInterval(function () { if (playerOpen && lyricsOn) syncLyrics(false); }, 200);
+  function toggleLyrics() {
+    lyricsOn = !lyricsOn;
+    drawPlayer();
   }
 
   /* ---------- Connexion ----------
