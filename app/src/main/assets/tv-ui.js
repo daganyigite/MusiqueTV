@@ -17,6 +17,8 @@
     '#tvui{position:fixed;inset:0;z-index:2147483647;background:#0E0F13;color:#F2F2F4;',
     'font-family:Manrope,"Segoe UI",Roboto,system-ui,sans-serif;display:flex;overflow:hidden;font-size:16px}',
     '#tvui.tv-hidden{display:none}',
+    'html.tv-on body>*:not(#tvui){content-visibility:hidden!important;visibility:hidden!important}',
+    'html.tv-on body{overflow:hidden!important}',
     '#tvui *{box-sizing:border-box}',
     '#tvui .rail{width:220px;flex-shrink:0;display:flex;flex-direction:column;gap:6px;padding:40px 16px 110px;border-right:1px solid #1E2028}',
     '#tvui .logo{width:46px;height:46px;border-radius:12px;background:var(--acc);margin:0 0 24px 12px;display:flex;align-items:center;justify-content:center}',
@@ -24,13 +26,13 @@
     '#tvui .tab.on{background:#1E2028;color:#F2F2F4;font-weight:700}',
     '#tvui .tab:focus{background:#F2F2F4;color:#0E0F13}',
     '#tvui .tab.bottom{margin-top:auto}',
-    '#tvui .main{flex:1;min-width:0;overflow-y:auto;padding:44px 56px 130px;scroll-behavior:smooth}',
+    '#tvui .main{flex:1;min-width:0;overflow-y:auto;padding:44px 56px 130px}',
     '#tvui .main::-webkit-scrollbar,#tvui .row::-webkit-scrollbar{display:none}',
     '#tvui h1{margin:0 0 6px;font-size:36px;font-weight:800;letter-spacing:-.02em}',
     '#tvui h2{margin:34px 0 16px;font-size:21px;font-weight:700}',
     '#tvui .sub{color:#9A9CA6;font-size:15px;margin:0}',
     '#tvui .row{display:flex;gap:24px;overflow-x:auto;padding:18px 18px 18px;margin:-8px -18px 0}',
-    '#tvui .card{width:180px;flex-shrink:0;outline:none;display:flex;flex-direction:column;gap:10px;transition:transform .15s}',
+    '#tvui .card{width:180px;flex-shrink:0;outline:none;display:flex;flex-direction:column;gap:10px;transition:transform .1s;will-change:transform}',
     '#tvui .card.wide{width:300px}',
     '#tvui .art{width:100%;aspect-ratio:1/1;border-radius:16px;background:#1E2028 center/cover no-repeat;display:flex;align-items:flex-end;padding:14px;font-size:54px;font-weight:800;color:rgba(14,15,19,.55)}',
     '#tvui .card.wide .art{aspect-ratio:16/9}',
@@ -62,7 +64,18 @@
     '#tvui .mini .art{width:52px;height:52px;border-radius:8px;padding:0;font-size:0;flex-shrink:0}',
     '#tvui .bar{flex:1;height:5px;border-radius:3px;background:#2A2C36;margin:0 24px;overflow:hidden}',
     '#tvui .bar i{display:block;height:100%;background:var(--acc);width:0}',
-    '#tvui .player{position:fixed;inset:0;background:#0E0F13;display:flex;gap:5vw;padding:7vh 6vw;z-index:5}',
+    '#tvui .player{position:fixed;inset:0;background:#0E0F13;display:flex;gap:5vw;padding:7vh 6vw;z-index:5;overflow:hidden}',
+    '#tvui .player>.pmain,#tvui .player>.queue{position:relative;z-index:1}',
+    '#tvui .pbg{position:absolute;inset:-8%;background:#0E0F13 center/cover no-repeat;transform:scale(1.15);opacity:0;transition:opacity .5s}',
+    '#tvui .pbg.on{opacity:1}',
+    '#tvui .pshade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,11,14,.55) 0%,rgba(10,11,14,.72) 55%,rgba(10,11,14,.88) 100%)}',
+    '#tvui .player .big{box-shadow:0 30px 80px rgba(0,0,0,.55)}',
+    '#tvui .player .partist,#tvui .player .times,#tvui .player .cb.sm{color:#D5D7DE}',
+    '#tvui .player .queue{border-left-color:rgba(255,255,255,.14)}',
+    '#tvui .player .cb{background:rgba(255,255,255,.14)}',
+    '#tvui .player .cb.sm{background:transparent}',
+    '#tvui .player .cb.pp{background:#F2F2F4}',
+    '#tvui .player .bar{background:rgba(255,255,255,.22)}',
     '#tvui .pmain{flex:1;min-width:0;display:flex;gap:4vw;align-items:center}',
     '#tvui .player .big{width:min(58vh,34vw);height:min(58vh,34vw);flex-shrink:0;border-radius:24px;padding:0;font-size:0}',
     '#tvui .pinfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:30px}',
@@ -149,6 +162,7 @@
   root.id = 'tvui';
   root.style.setProperty('--acc', accent);
   document.body.appendChild(root);
+  document.documentElement.classList.add('tv-on');
   document.documentElement.style.overflow = 'hidden';
 
   function bridgeReady() { try { window.TVBridge && TVBridge.ready(); } catch (e) {} }
@@ -175,7 +189,7 @@
     var pl = root.querySelector('.player');
     if (pl && !pl.contains(el)) return; // le lecteur plein écran garde le focus
     el.focus({ preventScroll: true });
-    el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     lastFocus = el;
   }
   function focusFirst(sel) {
@@ -252,13 +266,24 @@
   };
 
   /* ---------- API Apple Music ---------- */
-  function api(path, params) {
-    return music.api.music(path.replace('{sf}', sf), params || {}).then(function (r) {
+  /* Les réponses sont gardées 5 minutes : revenir sur un onglet est instantané. */
+  var apiCache = {};
+  var API_TTL = 5 * 60 * 1000;
+  function api(path, params, fresh) {
+    var url = path.replace('{sf}', sf);
+    var key = url + '?' + JSON.stringify(params || {});
+    var hit = apiCache[key];
+    if (!fresh && hit && Date.now() - hit.t < API_TTL) return hit.p;
+    var p = music.api.music(url, params || {}).then(function (r) {
       // r.data = la réponse JSON d'Apple ; sa clé "data" contient la liste quand il y en a une.
       var body = r && r.data ? r.data : (r || {});
       return Array.isArray(body.data) ? body.data : body;
     });
+    apiCache[key] = { t: Date.now(), p: p };
+    p.catch(function () { delete apiCache[key]; });
+    return p;
   }
+  function clearApiCache() { apiCache = {}; }
 
   /* ---------- Rendu ---------- */
   var TABS = [
@@ -368,7 +393,19 @@
       if (!r[0].length && !r[1].length) html += '<p class="msg">Rien à afficher pour l\'instant.</p>';
       shell(html);
       settle();
+      prefetch();
     });
+  }
+  var prefetched = false;
+  function prefetch() {
+    if (prefetched) return;
+    prefetched = true;
+    setTimeout(function () {
+      api('/v1/me/library/playlists', { limit: 50 }).catch(function () {});
+      api('/v1/me/library/albums', { limit: 50 }).catch(function () {});
+      api('/v1/me/library/artists', { limit: 50 }).catch(function () {});
+      api('/v1/catalog/{sf}/charts', { types: 'playlists,albums,songs', limit: 20 }).catch(function () {});
+    }, 1500);
   }
 
   /* ----- Explorer ----- */
@@ -490,7 +527,7 @@
         try { localStorage.setItem('tv_accent', accent); } catch (e) {}
       };
     });
-    root.querySelector('#reload').onclick = function () { try { TVBridge.reloadUi(); } catch (e) { location.reload(); } };
+    root.querySelector('#reload').onclick = function () { clearApiCache(); try { TVBridge.reloadUi(); } catch (e) { location.reload(); } };
     root.querySelector('#diag').onclick = function () { pushView(viewDiagnostic); };
     root.querySelector('#logout').onclick = function () {
       Promise.resolve(music.unauthorize()).then(function () { viewLogin(); });
@@ -741,7 +778,7 @@
       .then(function () {
         // On montre le lecteur vidéo du site Apple. Retour pour revenir.
         videoMode = true;
-        root.classList.add('tv-hidden');
+        root.classList.add('tv-hidden'); document.documentElement.classList.remove('tv-on');
         toast('Vidéo en cours — touche Retour pour revenir');
       })
       .catch(function (e) { toast('Impossible de lire cette vidéo : ' + friendlyError(e)); });
@@ -749,7 +786,7 @@
   function exitVideo() {
     videoMode = false;
     try { music.stop(); } catch (e) {}
-    root.classList.remove('tv-hidden');
+    root.classList.remove('tv-hidden'); document.documentElement.classList.add('tv-on');
     render();
   }
 
@@ -792,6 +829,11 @@
     var pd = root.querySelector('#pd'); if (pd) pd.textContent = fmt(d);
   }
 
+  function updatePlayButton() {
+    var b = root.querySelector('.player #pp');
+    if (b) b.innerHTML = music.isPlaying ? SVG_PAUSE : SVG_PLAY;
+  }
+
   /* ---------- Lecteur plein écran ---------- */
   function openPlayer() {
     if (!nowItem()) return;
@@ -821,7 +863,12 @@
       var items = music.queue.items || [];
       q = items.slice(music.queue.position + 1, music.queue.position + 7);
     } catch (e) {}
+    // Fond : la pochette en très petite taille, agrandie -> flou naturel, sans effet coûteux pour la télé.
+    var bgUrl = artUrl(a, 40);
+    var bgKey = bgUrl || (a.name || '');
+    var oldBg = p.getAttribute('data-bg');
     p.innerHTML =
+      '<div class="pbg' + (oldBg === bgKey ? ' on' : '') + '" style="' + (bgUrl ? 'background-image:url(\'' + bgUrl + '\')' : artStyle(a, 40, a.name)) + '"></div><div class="pshade"></div>' +
       '<div class="pmain"><div class="art big" style="' + artStyle(a, 800, a.name) + '"></div>' +
       '<div class="pinfo"><div><p class="kick">Lecture en cours</p>' +
       '<div class="ptitle">' + esc(a.name) + '</div><p class="partist">' + esc(a.artistName) + (a.albumName ? ' — ' + esc(a.albumName) : '') + '</p></div>' +
@@ -838,12 +885,19 @@
         var x = itemAttrs(it);
         return '<div class="qi"><div class="art" style="' + artStyle(x, 100, x.name) + '"></div><div style="min-width:0"><div class="ct" style="font-size:14px">' + esc(x.name) + '</div><div class="cs" style="margin-top:2px">' + esc(x.artistName) + '</div></div></div>';
       }).join('') : '<p class="sub">Rien après ce titre.</p>') + '</div>';
+    p.setAttribute('data-bg', bgKey);
+    var bg = p.querySelector('.pbg');
+    if (bgUrl && !bg.classList.contains('on')) {
+      var im = new Image();
+      im.onload = function () { bg.classList.add('on'); };
+      im.src = bgUrl;
+    } else { bg.classList.add('on'); }
     p.querySelector('#pp').onclick = function () { music.isPlaying ? music.pause() : music.play(); };
     p.querySelector('#pnx').onclick = function () { music.skipToNextItem(); };
     p.querySelector('#ppr').onclick = function () {
       if ((music.currentPlaybackTime || 0) > 4) music.seekToTime(0); else music.skipToPreviousItem();
     };
-    p.querySelector('#psh').onclick = function () { setShuffle(!(music.shuffleMode === 1)); drawPlayer(); };
+    p.querySelector('#psh').onclick = function () { setShuffle(!(music.shuffleMode === 1)); this.classList.toggle('act', music.shuffleMode === 1); };
     p.querySelector('#prp').onclick = function () { try { music.repeatMode = (music.repeatMode + 1) % 3; } catch (e) {} drawPlayer(); };
     updateProgress();
     var f = p.querySelector('#' + focusedId) || p.querySelector('#pp');
@@ -885,7 +939,7 @@
       }
       signingIn = true;
       // On cache notre interface pour laisser voir la page de connexion d'Apple.
-      root.classList.add('tv-hidden');
+      root.classList.add('tv-hidden'); document.documentElement.classList.remove('tv-on');
       try { btn.click(); } catch (e) {}
       // On attend que la connexion réussisse.
       clearInterval(signWatch);
@@ -902,7 +956,7 @@
     signingIn = false;
     clearInterval(signWatch);
     signWatch = null;
-    root.classList.remove('tv-hidden');
+    root.classList.remove('tv-hidden'); document.documentElement.classList.add('tv-on');
   }
 
   /* ---------- Démarrage ---------- */
@@ -931,8 +985,14 @@
     var E = window.MusicKit && MusicKit.Events ? MusicKit.Events : {};
     function on(name, fn) { try { music.addEventListener(E[name] || name, fn); } catch (e) {} }
     on('nowPlayingItemDidChange', function () { updateMini(); if (playerOpen) drawPlayer(); });
-    on('playbackStateDidChange', function () { updateMini(); if (playerOpen) drawPlayer(); });
-    on('playbackTimeDidChange', updateProgress);
+    on('playbackStateDidChange', function () { updateMini(); updatePlayButton(); });
+    var lastTick = 0;
+    on('playbackTimeDidChange', function () {
+      var now = Date.now();
+      if (now - lastTick < 500) return;
+      lastTick = now;
+      updateProgress();
+    });
     on('authorizationStatusDidChange', function () {
       if (signingIn) return;
       try { sf = music.storefrontId || sf; } catch (e) {}
@@ -968,17 +1028,7 @@
         console.log('[TV] fenêtre du site fermée : ' + text.slice(0, 120));
       });
     }
-    try {
-      var pending = false;
-      new MutationObserver(function () {
-        if (pending) return;
-        pending = true;
-        setTimeout(function () { pending = false; sweep(); }, 150);
-      }).observe(document.documentElement, {
-        childList: true, subtree: true, attributes: true, attributeFilter: ['open']
-      });
-    } catch (e) {}
-    setInterval(sweep, 2000);
+    setInterval(sweep, 1000);
   }
 
   boot();
