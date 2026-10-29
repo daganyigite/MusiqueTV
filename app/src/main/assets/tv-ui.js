@@ -42,9 +42,9 @@
     '#tvui .btn.pri{background:#F2F2F4;color:#0E0F13}',
     '#tvui .btn:focus{outline:3px solid var(--acc);outline-offset:4px}',
     '#tvui .btns{display:flex;gap:14px;flex-wrap:wrap;margin-top:22px}',
-    '#tvui .detail{display:flex;gap:56px}',
-    '#tvui .dleft{width:340px;flex-shrink:0}',
-    '#tvui .dleft .art{width:320px;height:320px;font-size:96px;border-radius:20px;margin-bottom:22px}',
+    '#tvui .detail{display:flex;gap:4vw}',
+    '#tvui .dleft{width:min(340px,28vw);flex-shrink:0}',
+    '#tvui .dleft .art{width:min(320px,26vw);height:min(320px,26vw);font-size:96px;border-radius:20px;margin-bottom:22px}',
     '#tvui .tracks{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}',
     '#tvui .trk{display:flex;align-items:center;gap:18px;padding:10px 16px;border-radius:12px;outline:none}',
     '#tvui .trk:focus{background:#1E2028;outline:2px solid #F2F2F4}',
@@ -59,12 +59,12 @@
     '#tvui .mini .art{width:52px;height:52px;border-radius:8px;padding:0;font-size:0;flex-shrink:0}',
     '#tvui .bar{flex:1;height:5px;border-radius:3px;background:#2A2C36;margin:0 24px;overflow:hidden}',
     '#tvui .bar i{display:block;height:100%;background:var(--acc);width:0}',
-    '#tvui .player{position:fixed;inset:0;background:#0E0F13;display:flex;gap:72px;padding:72px 80px;z-index:5}',
-    '#tvui .pmain{flex:1;min-width:0;display:flex;gap:56px;align-items:center}',
-    '#tvui .player .big{width:400px;height:400px;flex-shrink:0;border-radius:24px;padding:0;font-size:0}',
+    '#tvui .player{position:fixed;inset:0;background:#0E0F13;display:flex;gap:5vw;padding:7vh 6vw;z-index:5}',
+    '#tvui .pmain{flex:1;min-width:0;display:flex;gap:4vw;align-items:center}',
+    '#tvui .player .big{width:min(58vh,34vw);height:min(58vh,34vw);flex-shrink:0;border-radius:24px;padding:0;font-size:0}',
     '#tvui .pinfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:30px}',
     '#tvui .kick{font-size:14px;font-weight:700;color:var(--acc);letter-spacing:.08em;text-transform:uppercase;margin:0}',
-    '#tvui .ptitle{font-size:44px;font-weight:800;letter-spacing:-.02em;line-height:1.1;margin:8px 0}',
+    '#tvui .ptitle{font-size:clamp(26px,4vw,44px);font-weight:800;letter-spacing:-.02em;line-height:1.1;margin:8px 0}',
     '#tvui .partist{font-size:20px;color:#9A9CA6;margin:0}',
     '#tvui .times{display:flex;justify-content:space-between;font-size:14px;color:#9A9CA6;margin-top:10px}',
     '#tvui .ctrls{display:flex;align-items:center;gap:22px}',
@@ -73,7 +73,7 @@
     '#tvui .cb.sm.act{color:var(--acc)}',
     '#tvui .cb.pp{width:84px;height:84px;background:#F2F2F4;color:#0E0F13}',
     '#tvui .cb:focus{outline:4px solid var(--acc);outline-offset:5px}',
-    '#tvui .queue{width:290px;flex-shrink:0;border-left:1px solid #1E2028;padding-left:32px;display:flex;flex-direction:column;gap:14px;overflow:hidden}',
+    '#tvui .queue{width:22vw;flex-shrink:0;border-left:1px solid #1E2028;padding-left:32px;display:flex;flex-direction:column;gap:14px;overflow:hidden}',
     '#tvui .qi{display:flex;align-items:center;gap:12px}',
     '#tvui .qi .art{width:44px;height:44px;border-radius:8px;padding:0;font-size:0;flex-shrink:0}',
     '#tvui .center{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center}',
@@ -81,7 +81,8 @@
     '#tvui input.search:focus{outline:3px solid var(--acc)}',
     '#tvui .msg{color:#9A9CA6;font-size:16px;padding:20px 0}',
     '#tvui .swatch{width:52px;height:52px;border-radius:50%;outline:none}',
-    '#tvui .swatch:focus{outline:4px solid #F2F2F4;outline-offset:4px}'
+    '#tvui .swatch:focus{outline:4px solid #F2F2F4;outline-offset:4px}',
+    '@media (max-width:1100px){#tvui .queue{display:none}#tvui .ctrls{gap:14px}#tvui .cb.pp{width:72px;height:72px}#tvui .main{padding:36px 36px 120px}}'
   ].join('');
 
   /* ---------- Icônes ---------- */
@@ -229,6 +230,7 @@
 
   /* Retour (appelé par l'app Android). Renvoie true si géré. */
   window.__tvBack = function () {
+    if (signingIn) { viewLogin(); return true; }
     if (videoMode) { exitVideo(); return true; }
     if (playerOpen) { closePlayer(); return true; }
     if (stack.length) { stack.pop(); render(); return true; }
@@ -484,9 +486,7 @@
     });
     root.querySelector('#reload').onclick = function () { try { TVBridge.reloadUi(); } catch (e) { location.reload(); } };
     root.querySelector('#logout').onclick = function () {
-      loggingOut = true;
-      forgetToken();
-      Promise.resolve(music.unauthorize()).then(function () { loggingOut = false; viewLogin(); });
+      Promise.resolve(music.unauthorize()).then(function () { viewLogin(); });
     };
     settle();
   }
@@ -696,21 +696,59 @@
     focusEl(f);
   }
 
-  /* ---------- Connexion ---------- */
+  /* ---------- Connexion ----------
+   * On utilise le bouton « Sign In » officiel du site Apple : c'est la seule
+   * connexion qu'Apple accepte, et elle est gardée d'une ouverture à l'autre. */
+  var signingIn = false;
+  var signWatch = null;
+
+  function siteSignInButton() {
+    return document.querySelector('[data-testid="sign-in-button"]') ||
+      Array.prototype.filter.call(document.querySelectorAll('button, a'), function (e) {
+        return !root.contains(e) && /^(sign in|se connecter|connexion)$/i.test((e.textContent || '').trim());
+      })[0];
+  }
+
   function viewLogin() {
+    endSignIn(false);
     root.innerHTML = '<div class="center" style="width:100%">' +
       '<div class="logo" style="margin:0;width:72px;height:72px;border-radius:18px">' + SVG_NOTE + '</div>' +
       '<h1>Musique TV</h1><p class="sub">Connecte-toi avec ton compte Apple pour retrouver tes playlists.</p>' +
-      '<div class="btns" style="justify-content:center"><div class="btn pri" data-f tabindex="0" id="login">Se connecter avec Apple</div></div></div>';
-    root.querySelector('#login').onclick = function () {
-      loggingOut = false;
-      reapplied = [];
-      Promise.resolve(music.authorize()).then(function () {
-        saveToken();
-        tab = 'home'; stack = []; render();
-      }).catch(function () { toast('Connexion annulée.'); });
-    };
+      '<div class="btns" style="justify-content:center"><div class="btn pri" data-f tabindex="0" id="login">Se connecter avec Apple</div></div>' +
+      '<p class="sub" style="margin-top:24px;max-width:640px">La page de connexion d\'Apple va s\'ouvrir. Utilise les flèches et OK pour remplir les champs. Touche Retour pour annuler.</p></div>';
+    root.querySelector('#login').onclick = startSignIn;
     focusEl(root.querySelector('#login'));
+  }
+
+  function startSignIn() {
+    var btn = null, tries = 0;
+    (function find() {
+      btn = siteSignInButton();
+      if (!btn && ++tries < 20) { setTimeout(find, 500); return; }
+      if (!btn) {
+        toast('Bouton de connexion Apple introuvable. Réglages > Recharger l\'app.');
+        return;
+      }
+      signingIn = true;
+      // On cache notre interface pour laisser voir la page de connexion d'Apple.
+      root.classList.add('tv-hidden');
+      try { btn.click(); } catch (e) {}
+      // On attend que la connexion réussisse.
+      clearInterval(signWatch);
+      signWatch = setInterval(function () {
+        if (music && music.isAuthorized) {
+          endSignIn(true);
+          tab = 'home'; stack = []; render();
+        }
+      }, 1000);
+    })();
+  }
+
+  function endSignIn(ok) {
+    signingIn = false;
+    clearInterval(signWatch);
+    signWatch = null;
+    root.classList.remove('tv-hidden');
   }
 
   /* ---------- Démarrage ---------- */
@@ -742,81 +780,29 @@
     on('playbackStateDidChange', function () { updateMini(); if (playerOpen) drawPlayer(); });
     on('playbackTimeDidChange', updateProgress);
     on('authorizationStatusDidChange', function () {
-      if (music.isAuthorized) { saveToken(); return; }
-      if (restoring) return;
-      // Le site Apple a annulé la connexion de son côté : on la lui remet,
-      // sauf si c'est toi qui as demandé à te déconnecter.
-      var saved = null;
-      try { saved = localStorage.getItem(TOKEN_KEY); } catch (e) {}
-      var now = Date.now();
-      reapplied = reapplied.filter(function (t) { return now - t < 60000; });
-      if (!loggingOut && saved && reapplied.length < 5) {
-        reapplied.push(now);
-        setTimeout(function () {
-          try { music.musicUserToken = saved; } catch (e) {}
-          setSiteCookie(saved);
-        }, 300);
-        return;
-      }
-      viewLogin();
+      if (signingIn) return;
+      try { sf = music.storefrontId || sf; } catch (e) {}
+      if (!music.isAuthorized) viewLogin();
     });
     watchSiteDialogs();
-    if (music.isAuthorized) { saveToken(); render(); return; }
-    restoreToken();
-  }
-
-  /* ---------- Garder la connexion ----------
-   * Le site Apple oublie la connexion quand l'app se ferme.
-   * On garde donc le jeton de connexion dans la mémoire de l'app et on le lui redonne. */
-  var TOKEN_KEY = 'tv_music_user_token';
-  var restoring = false;
-  var loggingOut = false;
-  var reapplied = [];
-  // Le site Apple reconnaît une personne connectée grâce à ce cookie.
-  function setSiteCookie(t) {
-    try {
-      document.cookie = 'media-user-token=' + encodeURIComponent(t) +
-        '; domain=.apple.com; path=/; max-age=' + (t ? 31536000 : 0) + '; secure; samesite=lax';
-    } catch (e) {}
-  }
-  function saveToken() {
-    try {
-      var t = music.musicUserToken;
-      if (t) { localStorage.setItem(TOKEN_KEY, t); setSiteCookie(t); }
-    } catch (e) {}
-  }
-  function forgetToken() {
-    try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
-    setSiteCookie('');
-  }
-  function restoreToken() {
-    var saved = null;
-    try { saved = localStorage.getItem(TOKEN_KEY); } catch (e) {}
-    if (!saved) { viewLogin(); return; }
-    restoring = true;
-    try { music.musicUserToken = saved; } catch (e) {}
-    setSiteCookie(saved);
-    // On vérifie que le jeton est toujours valable avec une petite requête.
-    api('/v1/me/storefront').then(function (d) {
-      restoring = false;
-      var s = Array.isArray(d) && d[0] && d[0].id;
-      if (s) sf = s;
-      if (music.isAuthorized) { render(); } else { forgetToken(); viewLogin(); }
-    }).catch(function () {
-      restoring = false;
-      forgetToken();
-      try { music.musicUserToken = ''; } catch (e) {}
+    // La session met parfois une seconde à revenir au démarrage : on patiente un peu.
+    var waited = 0;
+    (function check() {
+      if (music.isAuthorized) { try { sf = music.storefrontId || sf; } catch (e) {} render(); return; }
+      if ((waited += 500) < 3000) { setTimeout(check, 500); return; }
       viewLogin();
-    });
+    })();
   }
 
   /* ---------- Fenêtres du site Apple ----------
    * Le site caché derrière l'interface ouvre parfois ses propres fenêtres
-   * (ex. "Authorization failed"). Elles passent au-dessus de tout : on les ferme. */
+   * (messages d'erreur). Elles passent au-dessus de tout : on les ferme,
+   * sauf pendant la connexion où c'est la page d'Apple qu'on veut voir. */
   function watchSiteDialogs() {
     var seen = typeof WeakSet !== 'undefined' ? new WeakSet() : null;
     function sweep() {
-      var list = document.querySelectorAll('dialog[open], [role="dialog"], [role="alertdialog"]');
+      if (signingIn || videoMode) return;
+      var list = document.querySelectorAll('dialog[open], [role="alertdialog"]');
       Array.prototype.forEach.call(list, function (d) {
         if (root.contains(d)) return;
         var text = (d.textContent || '').replace(/\s+/g, ' ').trim();
@@ -828,7 +814,6 @@
         console.log('[TV] fenêtre du site fermée : ' + text.slice(0, 120));
       });
     }
-    sweep();
     try {
       var pending = false;
       new MutationObserver(function () {
