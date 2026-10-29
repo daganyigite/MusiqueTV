@@ -29,6 +29,8 @@
       opts: [['0', 'Non, rester sur la page'], ['1', 'Oui']] },
     { k: 'idle', sec: 'Lecture', label: 'Lecteur plein écran après inactivité', def: '0',
       opts: [['0', 'Jamais'], ['60', 'Après 1 min'], ['180', 'Après 3 min'], ['300', 'Après 5 min']] },
+    { k: 'fade', sec: 'Lecture', label: 'Fondu enchaîné entre les titres', def: '0',
+      opts: [['0', 'Désactivé'], ['3', '3 secondes'], ['6', '6 secondes'], ['10', '10 secondes']] },
     { k: 'stallfix', sec: 'Lecture', label: 'Relancer un titre qui se bloque', def: '1',
       opts: [['1', 'Activé'], ['0', 'Désactivé']] },
     { k: 'hideexplicit', sec: 'Lecture', label: 'Titres explicites dans les listes', def: '0',
@@ -196,6 +198,14 @@
     '#tvui .player .cb.sm{background:transparent}',
     '#tvui .player .cb.pp{background:#F2F2F4}',
     '#tvui .player .bar{background:rgba(255,255,255,.22)}',
+    '#tvui .seek{padding:12px 0;margin:-12px 0 0;border-radius:10px;outline:none}',
+    '#tvui .seek .bar{position:relative;margin:0;height:6px;overflow:visible;transition:height .15s}',
+    '#tvui .seek .bar i{border-radius:3px}',
+    '#tvui .knob{position:absolute;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:#F2F2F4;box-shadow:0 2px 8px rgba(0,0,0,.5);opacity:0;transition:opacity .15s}',
+    '#tvui .seek:focus .bar{height:10px}',
+    '#tvui .seek:focus .knob{opacity:1}',
+    '#tvui .seekhint{opacity:0;transition:opacity .2s;font-size:13px}',
+    '#tvui .player:has(.seek:focus) .seekhint{opacity:.8}',
     '#tvui .pmain{flex:1;min-width:0;display:flex;gap:4vw;align-items:center}',
     '#tvui .player .big{width:min(58vh,34vw);height:min(58vh,34vw);flex-shrink:0;border-radius:24px;padding:0;font-size:0}',
     '#tvui .pinfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:30px}',
@@ -423,6 +433,12 @@
     if (videoMode) pokeVideoControls();
     var inInput = document.activeElement && document.activeElement.tagName === 'INPUT';
     var dirs = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
+    var ae = document.activeElement;
+    if (ae && ae.hasAttribute && ae.hasAttribute('data-seek') && (k === 'ArrowLeft' || k === 'ArrowRight')) {
+      e.preventDefault(); e.stopPropagation();
+      seekStep(k === 'ArrowRight' ? 1 : -1, e.repeat);
+      return;
+    }
     if (dirs[k]) {
       if (inInput && (k === 'ArrowLeft' || k === 'ArrowRight')) { e.stopPropagation(); return; }
       e.preventDefault(); e.stopPropagation();
@@ -441,6 +457,8 @@
   var playErrors = [];
   var stall = { id: null, t: 0, since: 0, tries: 0 };
   function userAction() { lastUserAction = Date.now(); idleSince = Date.now(); }
+  var lastSkip = 0;
+  function userSkip() { lastSkip = Date.now(); userAction(); }
   function logPlayError(msg) {
     var it = nowItem(), a = itemAttrs(it);
     var d = new Date();
@@ -483,6 +501,43 @@
     stall.wasPlaying = music.isPlaying;
   }, 1000);
 
+  /* ---------- Fondu enchaîné ----------
+   * Le lecteur Apple ne lit qu'un titre à la fois : on baisse doucement le son à la fin
+   * d'un titre et on le remonte doucement au début du suivant. */
+  var fadeBase = 1, fadeIn = 0, fading = false;
+  function onTrackChange() {
+    var f = +setting('fade');
+    if (!f || videoMode || !music) return;
+    fadeIn = Date.now();
+    try { music.volume = 0.05 * fadeBase; } catch (e) {}
+  }
+  setInterval(function () {
+    if (!music) return;
+    var f = +setting('fade');
+    if (!f || videoMode) {
+      if (fading || fadeIn) { fading = false; fadeIn = 0; try { music.volume = fadeBase; } catch (e) {} }
+      return;
+    }
+    if (!fading && !fadeIn) { try { if (music.volume > 0.2) fadeBase = music.volume; } catch (e) {} }
+    var t = music.currentPlaybackTime || 0, d = music.currentPlaybackDuration || 0;
+    var rp = 0; try { rp = music.repeatMode; } catch (e) {}
+    var vol = null;
+    if (fadeIn) {
+      var inDur = Math.max(1.5, f / 2) * 1000;
+      var pr = (Date.now() - fadeIn) / inDur;
+      if (pr >= 1) { fadeIn = 0; vol = fadeBase; } else vol = Math.max(0.05, pr) * fadeBase;
+    }
+    if (music.isPlaying && d > f * 3 && rp !== 1 && d - t <= f && pendingSeek == null) {
+      fading = true;
+      var out = Math.max(0.05, (d - t) / f) * fadeBase;
+      vol = vol == null ? out : Math.min(vol, out);
+    } else if (fading && d - t > f) {
+      fading = false;
+      if (vol == null) vol = fadeBase;
+    }
+    if (vol != null) { try { music.volume = vol; } catch (e) {} }
+  }, 200);
+
   /* ---------- Lecteur plein écran après inactivité ---------- */
   var idleSince = Date.now();
   window.addEventListener('keydown', function () { idleSince = Date.now(); }, true);
@@ -509,8 +564,8 @@
       if (a === 'toggle') music.isPlaying ? music.pause() : music.play();
       if (a === 'play') music.play();
       if (a === 'pause') music.pause();
-      if (a === 'next') music.skipToNextItem();
-      if (a === 'previous') music.skipToPreviousItem();
+      if (a === 'next') { userSkip(); music.skipToNextItem(); }
+      if (a === 'previous') { userSkip(); music.skipToPreviousItem(); }
     } catch (e) {}
   };
 
@@ -637,7 +692,7 @@
     if (mini) {
       mini.querySelector('#mnow').onclick = openPlayer;
       mini.querySelector('#mp').onclick = togglePlay;
-      mini.querySelector('#mnx').onclick = function () { music.skipToNextItem(); };
+      mini.querySelector('#mnx').onclick = function () { userSkip(); music.skipToNextItem(); };
       mini.querySelector('#mpr').onclick = prevTrack;
       mini.querySelector('#msh').onclick = function () { setShuffle(!(music.shuffleMode === 1)); updateMini(); };
       mini.querySelector('#mrp').onclick = cycleRepeat;
@@ -1123,7 +1178,7 @@
   }
   function playItems(items, start, container) {
     if (!items.length) return;
-    userAction();
+    userSkip();
     start = start || 0;
     var target = items[start];
     var attempts = queueAttempts(items, start, container);
@@ -1329,7 +1384,27 @@
   }
 
   /* ---------- Mini-lecteur ---------- */
-  function nowItem() { try { return music.nowPlayingItem; } catch (e) { return null; } }
+  function realNowItem() { try { return music.nowPlayingItem; } catch (e) { return null; } }
+  /* En « répéter ce morceau », le lecteur Apple affiche brièvement un autre titre au moment
+   * de reboucler. On garde l'affichage du morceau en cours pendant ce court instant. */
+  var shownItem = null, holdUntil = 0, nullSince = 0;
+  function nowItem() {
+    var it = realNowItem();
+    if (!it) {
+      // Entre deux passages (reboucle, chargement), le lecteur n'a brièvement aucun titre :
+      // on garde l'affichage du dernier titre jusqu'à 4 secondes.
+      if (shownItem) {
+        if (!nullSince) nullSince = Date.now();
+        if (Date.now() - nullSince < 4000) return shownItem;
+      }
+      return null;
+    }
+    nullSince = 0;
+    if (holdUntil > Date.now() && shownItem && it.id !== shownItem.id) return shownItem;
+    shownItem = it;
+    return it;
+  }
+  var lastRealId = null;
   function itemAttrs(it) { return it ? (it.attributes || it) : {}; }
 
   function miniHtml() {
@@ -1369,6 +1444,7 @@
   }
   function togglePlay() { userAction(); music.isPlaying ? music.pause() : music.play(); }
   function prevTrack() {
+    userSkip();
     if ((music.currentPlaybackTime || 0) > 4) music.seekToTime(0); else music.skipToPreviousItem();
   }
   /* Répéter : désactivé → tout répéter → ce morceau seulement → désactivé (comme Apple Music) */
@@ -1422,6 +1498,7 @@
     root.appendChild(panel);
     panel.querySelectorAll('.qrow').forEach(function (el) {
       el.onclick = function () {
+        userSkip();
         var idx = +el.getAttribute('data-q');
         Promise.resolve(idx === music.queue.position ? null : music.changeToMediaAtIndex(idx))
           .then(function () { return music.play(); })
@@ -1445,12 +1522,29 @@
   }
 
   function updateProgress() {
-    var d = music.currentPlaybackDuration || 0, t = music.currentPlaybackTime || 0;
+    var d = music.currentPlaybackDuration || 0, t = pendingSeek != null ? pendingSeek : (music.currentPlaybackTime || 0);
     var pct = d ? Math.min(100, (t / d) * 100) : 0;
     var mb = root.querySelector('#mb'); if (mb) mb.style.width = pct + '%';
     var pb = root.querySelector('#pb'); if (pb) pb.style.width = pct + '%';
+    var pk = root.querySelector('#pk'); if (pk) pk.style.left = pct + '%';
     var pt = root.querySelector('#pt'); if (pt) pt.textContent = fmt(t);
     var pd = root.querySelector('#pd'); if (pd) pd.textContent = fmt(d);
+  }
+
+  /* Avancer / reculer : sur la barre de progression, ◀ ▶ déplacent de 10 s (20 s en restant appuyé). */
+  var pendingSeek = null, seekTimer = null;
+  function seekStep(dir, held) {
+    var d = music.currentPlaybackDuration || 0;
+    if (!d) return;
+    var base = pendingSeek != null ? pendingSeek : (music.currentPlaybackTime || 0);
+    pendingSeek = Math.max(0, Math.min(d - 1, base + dir * (held ? 20 : 10)));
+    updateProgress();
+    clearTimeout(seekTimer);
+    seekTimer = setTimeout(function () {
+      var target = pendingSeek;
+      Promise.resolve(music.seekToTime(target)).then(function () { pendingSeek = null; updateProgress(); }, function () { pendingSeek = null; });
+      userAction();
+    }, 450);
   }
 
   function updatePlayButton() {
@@ -1496,7 +1590,8 @@
       '<div class="pmain"><div class="art big" style="' + artStyle(a, 800, a.name) + '"></div>' +
       '<div class="pinfo"><div><p class="kick">Lecture en cours</p>' +
       '<div class="ptitle">' + esc(a.name) + '</div><p class="partist">' + esc(a.artistName) + (a.albumName ? ' — ' + esc(a.albumName) : '') + '</p></div>' +
-      '<div><div class="bar" style="margin:0;height:6px"><i id="pb"></i></div><div class="times"><span id="pt"></span><span id="pd"></span></div></div>' +
+      '<div><div class="seek" data-f tabindex="0" data-seek="1" id="pseek" aria-label="Position dans le morceau"><div class="bar"><i id="pb"></i><b class="knob" id="pk"></b></div></div>' +
+      '<div class="times"><span id="pt"></span><span class="seekhint">◀ ▶ pour avancer</span><span id="pd"></span></div></div>' +
       '<div class="ctrls">' +
       '<div class="cb sm' + (shuffle ? ' act' : '') + '" data-f tabindex="0" id="psh">' + icon('shuffle') + '</div>' +
       '<div class="cb" data-f tabindex="0" id="ppr">' + SVG_PREV + '</div>' +
@@ -1518,7 +1613,8 @@
       im.src = bgUrl;
     } else { bg.classList.add('on'); }
     p.querySelector('#pp').onclick = function () { userAction(); music.isPlaying ? music.pause() : music.play(); };
-    p.querySelector('#pnx').onclick = function () { music.skipToNextItem(); };
+    p.querySelector('#pnx').onclick = function () { userSkip(); music.skipToNextItem(); };
+    p.querySelector('#pseek').onclick = togglePlay;
     p.querySelector('#ppr').onclick = function () {
       if ((music.currentPlaybackTime || 0) > 4) music.seekToTime(0); else music.skipToPreviousItem();
     };
@@ -1610,7 +1706,24 @@
     try { sf = music.storefrontId || sf; } catch (e) {}
     var E = window.MusicKit && MusicKit.Events ? MusicKit.Events : {};
     function on(name, fn) { try { music.addEventListener(E[name] || name, fn); } catch (e) {} }
-    on('nowPlayingItemDidChange', function () { updateMini(); if (playerOpen) drawPlayer(); });
+    on('nowPlayingItemDidChange', function () {
+      var it = realNowItem();
+      if (!it) {
+        setTimeout(function () { updateMini(); if (playerOpen) drawPlayer(); }, 4100);
+        return;
+      }
+      var rp = 0; try { rp = music.repeatMode; } catch (e) {}
+      if (rp === 1 && shownItem && it && it.id !== shownItem.id && Date.now() - lastSkip > 2000) {
+        holdUntil = Date.now() + 3500;
+        setTimeout(function () { holdUntil = 0; updateMini(); if (playerOpen) drawPlayer(); }, 3600);
+        return;
+      }
+      holdUntil = 0;
+      if (it.id !== lastRealId) { lastRealId = it.id; onTrackChange(); }
+      var sameAsShown = shownItem && shownItem.id === it.id && playerOpen && root.querySelector('.player .big');
+      updateMini();
+      if (playerOpen && !sameAsShown) drawPlayer();
+    });
     on('playbackStateDidChange', function () { updateMini(); updatePlayButton(); updateVideoControls(); });
     var lastTick = 0;
     on('mediaPlaybackError', function (e) {
