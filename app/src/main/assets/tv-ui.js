@@ -702,7 +702,10 @@
       '<div class="btns" style="justify-content:center"><div class="btn pri" data-f tabindex="0" id="login">Se connecter avec Apple</div></div></div>';
     root.querySelector('#login').onclick = function () {
       Promise.resolve(music.authorize()).then(function () {
-        tab = 'home'; stack = []; render();
+        // On recharge le site pour qu'il prenne en compte la connexion
+        // (sinon il affiche "Authorization failed" par-dessus l'interface).
+        try { sessionStorage.setItem('tv_just_logged', '1'); } catch (e) {}
+        try { TVBridge.reloadUi(); } catch (e) { location.reload(); }
       }).catch(function () { toast('Connexion annulée.'); });
     };
     focusEl(root.querySelector('#login'));
@@ -738,6 +741,49 @@
     on('playbackTimeDidChange', updateProgress);
     on('authorizationStatusDidChange', function () { if (!music.isAuthorized) viewLogin(); });
     if (music.isAuthorized) { render(); } else { viewLogin(); }
+    watchSiteDialogs();
+  }
+
+  /* ---------- Fenêtres du site Apple ----------
+   * Le site caché derrière l'interface ouvre parfois ses propres fenêtres
+   * (ex. "Authorization failed"). Elles passent au-dessus de tout : on les ferme. */
+  function watchSiteDialogs() {
+    var seen = typeof WeakSet !== 'undefined' ? new WeakSet() : null;
+    function sweep() {
+      var list = document.querySelectorAll('dialog[open], [role="dialog"], [role="alertdialog"]');
+      Array.prototype.forEach.call(list, function (d) {
+        if (root.contains(d)) return;
+        var text = (d.textContent || '').replace(/\s+/g, ' ').trim();
+        if (!text) return;
+        try { if (d.close) d.close(); } catch (e) {}
+        d.style.setProperty('display', 'none', 'important');
+        if (seen && seen.has(d)) return;
+        if (seen) seen.add(d);
+        if (/authoriz|log in|sign in|connect/i.test(text)) {
+          // Une seule tentative de resynchronisation par session.
+          var tried = false;
+          try { tried = sessionStorage.getItem('tv_resync') === '1'; } catch (e) {}
+          if (!tried && music && music.isAuthorized) {
+            try { sessionStorage.setItem('tv_resync', '1'); } catch (e) {}
+            try { TVBridge.reloadUi(); } catch (e) { location.reload(); }
+            return;
+          }
+        }
+        console.log('[TV] fenêtre du site fermée : ' + text.slice(0, 120));
+      });
+    }
+    sweep();
+    try {
+      var pending = false;
+      new MutationObserver(function () {
+        if (pending) return;
+        pending = true;
+        setTimeout(function () { pending = false; sweep(); }, 150);
+      }).observe(document.documentElement, {
+        childList: true, subtree: true, attributes: true, attributeFilter: ['open']
+      });
+    } catch (e) {}
+    setInterval(sweep, 2000);
   }
 
   boot();
