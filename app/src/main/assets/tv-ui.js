@@ -475,6 +475,7 @@
       '</div><h2>Compte</h2><div class="btns">' +
       '<div class="btn" data-f tabindex="0" id="reload">Recharger l\'app</div>' +
       '<div class="btn" data-f tabindex="0" id="logout">Se déconnecter</div></div>' +
+      '<h2>Dépannage</h2><div class="btns"><div class="btn" data-f tabindex="0" id="diag">Tester la lecture</div></div>' +
       '<p class="sub" style="margin-top:28px">Pays du compte : ' + esc(sf.toUpperCase()) + '</p>';
     shell(html);
     root.querySelectorAll('.swatch').forEach(function (el) {
@@ -485,10 +486,67 @@
       };
     });
     root.querySelector('#reload').onclick = function () { try { TVBridge.reloadUi(); } catch (e) { location.reload(); } };
+    root.querySelector('#diag').onclick = function () { pushView(viewDiagnostic); };
     root.querySelector('#logout').onclick = function () {
       Promise.resolve(music.unauthorize()).then(function () { viewLogin(); });
     };
     settle();
+  }
+
+  /* ----- Diagnostic de lecture (à photographier en cas de souci) ----- */
+  function viewDiagnostic() {
+    shell('<h1>Test de lecture</h1><p class="sub">Prends cet écran en photo et envoie-la à Claude.</p><div id="dg" style="margin-top:24px;font-size:15px;line-height:1.7;white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace"></div>');
+    var box = root.querySelector('#dg');
+    function line(t) { box.textContent += t + '\n'; }
+    line('Pays : ' + sf + ' | connecté : ' + (music.isAuthorized ? 'oui' : 'non') + ' | MusicKit ' + (window.MusicKit && MusicKit.version || '?'));
+    line('Navigateur : ' + navigator.userAgent.slice(0, 120));
+    var drm = [
+      ['Widevine', 'com.widevine.alpha'],
+      ['PlayReady', 'com.microsoft.playready'],
+      ['ClearKey', 'org.w3.clearkey']
+    ];
+    var cfg = [{
+      initDataTypes: ['cenc', 'keyids'],
+      audioCapabilities: [{ contentType: 'audio/mp4; codecs="mp4a.40.2"' }, { contentType: 'audio/mp4; codecs="mp4a.40.2"', robustness: 'SW_SECURE_CRYPTO' }]
+    }];
+    var chain = Promise.resolve();
+    drm.forEach(function (d) {
+      chain = chain.then(function () {
+        if (!navigator.requestMediaKeySystemAccess) { line('DRM ' + d[0] + ' : API absente'); return; }
+        return navigator.requestMediaKeySystemAccess(d[1], cfg)
+          .then(function () { line('DRM ' + d[0] + ' : OK'); })
+          .catch(function (e) { line('DRM ' + d[0] + ' : NON (' + errText(e) + ')'); });
+      });
+    });
+    chain.then(function () {
+      line('Codec AAC : ' + (window.MediaSource && MediaSource.isTypeSupported('audio/mp4; codecs="mp4a.40.2"') ? 'OK' : 'NON'));
+      if (lastPlayLog.length) line('Dernier essai de lecture :\n  ' + lastPlayLog.join('\n  '));
+      line('Test sur ta première playlist…');
+      return api('/v1/me/library/playlists', { limit: 1 });
+    }).then(function (pls) {
+      var pl = pls && pls[0];
+      if (!pl) { line('Aucune playlist trouvée.'); return; }
+      line('Playlist : ' + (pl.attributes && pl.attributes.name));
+      return api('/v1/me/library/playlists/' + pl.id + '/tracks', { limit: 3 }).then(function (tr) {
+        var tries = queueAttempts(tr, 0, pl);
+        var j = 0;
+        var vol = 1;
+        try { vol = music.volume; music.volume = 0; } catch (e) {}
+        return new Promise(function (done) {
+          (function next() {
+            if (j >= tries.length) { try { music.pause(); music.volume = vol; } catch (e) {} done(); return; }
+            var a = tries[j++];
+            Promise.resolve()
+              .then(function () { return music.setQueue(a[1]); })
+              .then(function () { return music.play(); })
+              .then(function () { return new Promise(function (r) { setTimeout(r, 2500); }); })
+              .then(function () { line('  ' + a[0] + ' : ' + (music.isPlaying ? 'OK (ça joue)' : 'lancé mais ne joue pas')); try { music.pause(); } catch (e) {} next(); })
+              .catch(function (e) { line('  ' + a[0] + ' : ' + errText(e)); next(); });
+          })();
+        });
+      });
+    }).then(function () { line('Fin du test.'); })
+      .catch(function (e) { line('Erreur du test : ' + errText(e)); });
   }
 
   /* ----- Ouvrir un élément ----- */
@@ -546,13 +604,13 @@
           '<span class="du">' + fmtMs(a.durationInMillis) + '</span></div>';
       }).join('') + (tracks.length ? '' : '<p class="msg">Liste vide.</p>') + '</div></div>';
     shell(html);
-    root.querySelector('#playAll').onclick = function () { setShuffle(false); playItems(tracks, 0); };
+    root.querySelector('#playAll').onclick = function () { setShuffle(false); playItems(tracks, 0, item); };
     root.querySelector('#shuffleAll').onclick = function () {
       setShuffle(true);
-      playItems(tracks, Math.floor(Math.random() * Math.max(1, tracks.length)));
+      playItems(tracks, Math.floor(Math.random() * Math.max(1, tracks.length)), item);
     };
     root.querySelectorAll('.trk').forEach(function (el) {
-      el.onclick = function () { playItems(tracks, +el.getAttribute('data-i')); };
+      el.onclick = function () { playItems(tracks, +el.getAttribute('data-i'), item); };
     });
     focusEl(root.querySelector('#playAll'));
   }
@@ -561,19 +619,57 @@
   function setShuffle(on) {
     try { music.shuffleMode = on ? 1 : 0; } catch (e) {}
   }
-  function playItems(items, start) {
+  /* On essaie plusieurs façons de lancer la lecture et on garde la première qui marche.
+   * (Le lecteur Apple n'accepte pas toujours la même méthode selon l'appareil.) */
+  var lastPlayLog = [];
+  function queueAttempts(items, start, container) {
+    var list = [];
+    var ct = container && container.type || '';
+    if (container && container.id && /playlists|albums/.test(ct)) {
+      var o1 = { startWith: start };
+      o1[/playlists/.test(ct) ? 'playlist' : 'album'] = container.id;
+      list.push(['liste', o1]);
+    }
+    var cat = items.map(function (t) {
+      var pp = t.attributes && t.attributes.playParams;
+      if (pp && pp.catalogId) return pp.catalogId;
+      return /^library-/.test(t.type) ? null : t.id;
+    });
+    if (cat.every(Boolean)) list.push(['catalogue', { songs: cat, startWith: start }]);
+    list.push(['éléments', { items: items.map(function (t) { return { id: t.id, type: t.type, attributes: t.attributes }; }), startWith: start }]);
+    var one = items[start] || items[0];
+    var oneId = (one.attributes && one.attributes.playParams && one.attributes.playParams.catalogId) || one.id;
+    list.push(['titre seul', { song: oneId }]);
+    return list;
+  }
+  function errText(e) {
+    if (!e) return 'erreur';
+    return ((e.errorCode ? e.errorCode + ' ' : '') + (e.message || e.name || String(e))).slice(0, 140);
+  }
+  function playItems(items, start, container) {
     if (!items.length) return;
-    var descriptors = items.map(function (t) { return { id: t.id, type: t.type, attributes: t.attributes }; });
-    Promise.resolve()
-      .then(function () { return music.setQueue({ items: descriptors, startWith: start || 0 }); })
-      .catch(function () {
-        // Repli : on joue juste le morceau choisi.
-        var t = items[start || 0];
-        return music.setQueue({ song: t.id });
-      })
-      .then(function () { return music.play(); })
-      .then(function () { openPlayer(); })
-      .catch(function (e) { toast('Lecture impossible : ' + (e && e.message ? e.message : 'erreur')); });
+    start = start || 0;
+    var attempts = queueAttempts(items, start, container);
+    lastPlayLog = [];
+    var i = 0;
+    (function next() {
+      if (i >= attempts.length) {
+        toast('Lecture impossible : ' + (lastPlayLog[lastPlayLog.length - 1] || 'erreur'));
+        return;
+      }
+      var a = attempts[i++];
+      Promise.resolve()
+        .then(function () { return music.setQueue(a[1]); })
+        .then(function () { return music.play(); })
+        .then(function () {
+          lastPlayLog.push(a[0] + ' : OK');
+          openPlayer();
+        })
+        .catch(function (e) {
+          lastPlayLog.push(a[0] + ' : ' + errText(e));
+          next();
+        });
+    })();
   }
   function playStation(item) {
     Promise.resolve(music.setQueue({ station: item.id }))
