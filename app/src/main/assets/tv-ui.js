@@ -39,6 +39,16 @@
     '#tvui .rgrp{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;color:#C9CBD3;margin:4px 12px 4px;flex-shrink:0}',
     '#tvui .rgrp svg{color:var(--acc)}',
     '#tvui .grid{display:flex;flex-wrap:wrap;gap:28px 24px;padding:18px 18px;margin:-8px -18px 0}',
+    '#tvui .vstage{position:fixed;inset:0;z-index:20;background:#000}',
+    '#tvui .vbox{position:absolute;inset:0}',
+    '#tvui .vctl{position:absolute;left:0;right:0;bottom:0;padding:80px 6vw 36px;background:linear-gradient(transparent,rgba(0,0,0,.85));opacity:0;transition:opacity .3s}',
+    '#tvui .vstage.show .vctl{opacity:1}',
+    '#tvui .vt{font-size:clamp(22px,3vw,34px);font-weight:800}',
+    '#tvui .va{font-size:16px;color:#C9CBD3;margin:4px 0 16px}',
+    '#tvui .vbar{margin:0;height:5px;background:rgba(255,255,255,.25)}',
+    '#tvui .vstage .times{color:#C9CBD3;margin-bottom:14px}',
+    '#tvui .vstage .cb{background:rgba(255,255,255,.16);font-size:20px}',
+    '#tvui .vstage .cb.pp{background:#F2F2F4}',
     '#tvui .main [data-f]{scroll-margin:40px 30px 140px}',
     '#tvui .rail [data-f]{scroll-margin:28px 0 28px}',
     '#tvui .qrow{scroll-margin:16px 0}',
@@ -147,7 +157,7 @@
     '#tvui .msg{color:#9A9CA6;font-size:16px;padding:20px 0}',
     '#tvui .swatch{width:52px;height:52px;border-radius:50%;outline:none}',
     '#tvui .swatch:focus{outline:4px solid #F2F2F4;outline-offset:4px}',
-    '@media (max-width:1100px){#tvui .rail{width:230px}#tvui .mini{left:230px}#tvui .queue{display:none}#tvui .mb.sm{display:none}#tvui .mb.sm.keep{display:flex}#tvui .qpanel{width:60vw}#tvui .ctrls{gap:14px}#tvui .cb.pp{width:72px;height:72px}#tvui .main{padding:36px 36px 120px}}'
+    '@media (max-width:1100px){#tvui .rail{width:230px}#tvui .mini{left:230px}#tvui .queue{display:none}#tvui .mb{width:44px;height:44px}#tvui .pill{padding:0 10px}#tvui .mnow{margin:0 6px}#tvui .qpanel{width:60vw}#tvui .ctrls{gap:14px}#tvui .cb.pp{width:72px;height:72px}#tvui .main{padding:36px 36px 120px}}'
   ].join('');
 
   /* ---------- Icônes ---------- */
@@ -235,7 +245,7 @@
   var lastFocus = null;
 
   /* ---------- Navigation télécommande ---------- */
-  function topLayer() { return root.querySelector('.qpanel') || root.querySelector('.player') || root; }
+  function topLayer() { return root.querySelector('.vstage') || root.querySelector('.qpanel') || root.querySelector('.player') || root; }
   function focusables() {
     var scope = topLayer();
     return Array.prototype.filter.call(scope.querySelectorAll('[data-f]'), function (el) {
@@ -294,8 +304,9 @@
     if (best) focusEl(best);
   }
   window.addEventListener('keydown', function (e) {
-    if (videoMode || root.classList.contains('tv-hidden')) return;
+    if (root.classList.contains('tv-hidden')) return;
     var k = e.key;
+    if (videoMode) pokeVideoControls();
     var inInput = document.activeElement && document.activeElement.tagName === 'INPUT';
     var dirs = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
     if (dirs[k]) {
@@ -759,7 +770,7 @@
   function openItem(item) {
     var t = item.type || '';
     if (t === 'songs' || t === 'library-songs') { playItems([item], 0); return; }
-    if (t === 'music-videos') { playVideo(item); return; }
+    if (t === 'music-videos' || t === 'library-music-videos') { playVideo(item); return; }
     if (t === 'stations') { playStation(item); return; }
     if (t === 'artists' || t === 'library-artists') { pushView(function () { viewArtist(item); }); return; }
     if (/playlists|albums/.test(t)) { pushView(function () { viewCollection(item); }); return; }
@@ -917,7 +928,7 @@
         .then(function () { return music.play(); })
         .then(function () {
           lastPlayLog.push(a[0] + ' : OK');
-          openPlayer();
+          updateMini();
         })
         .catch(function (e) {
           lastErr = e;
@@ -929,25 +940,113 @@
   function playStation(item) {
     Promise.resolve(music.setQueue({ station: item.id }))
       .then(function () { return music.play(); })
-      .then(openPlayer)
+      .then(updateMini)
       .catch(function () { toast('Impossible de lancer cette radio.'); });
   }
+  /* ---------- Lecteur vidéo ----------
+   * Le lecteur Apple crée sa vidéo dans une fenêtre cachée du site.
+   * On récupère cet élément vidéo et on l'affiche dans notre propre écran. */
+  var vid = null;      // { el, home, next, stage, hideTimer }
+  function findSiteVideo() {
+    var found = null;
+    (function walk(n) {
+      if (found) return;
+      var all = n.querySelectorAll('*');
+      for (var i = 0; i < all.length && !found; i++) {
+        var e = all[i];
+        if (e.id === 'apple-music-video-player' && e.tagName === 'VIDEO') { found = e; return; }
+        if (e.shadowRoot) walk(e.shadowRoot);
+      }
+    })(document);
+    return found;
+  }
+  function videoId(item) {
+    var pp = item.attributes && item.attributes.playParams || {};
+    return pp.catalogId || (/^library-/.test(item.type) ? null : item.id) || item.id;
+  }
   function playVideo(item) {
-    Promise.resolve(music.setQueue({ musicVideo: item.id }))
+    var id = videoId(item);
+    // Notre écran noir couvre tout pendant le chargement. Le site Apple doit rester
+    // « affiché » derrière, sinon sa vidéo ne démarre jamais.
+    var old = root.querySelector('.vstage'); if (old) old.remove();
+    var stage = document.createElement('div');
+    stage.className = 'vstage show';
+    stage.innerHTML = '<div class="center" style="height:100%"><p class="sub">Chargement de la vidéo…</p></div>';
+    root.appendChild(stage);
+    videoMode = true;
+    document.documentElement.classList.remove('tv-on');
+    Promise.resolve(music.setQueue({ musicVideo: id }))
       .then(function () { return music.play(); })
       .then(function () {
-        // On montre le lecteur vidéo du site Apple. Retour pour revenir.
-        videoMode = true;
-        root.classList.add('tv-hidden'); document.documentElement.classList.remove('tv-on');
-        toast('Vidéo en cours — touche Retour pour revenir');
+        var tries = 0;
+        (function grab() {
+          var el = findSiteVideo();
+          if (el) { showVideo(el, item); return; }
+          if (++tries > 60) { exitVideo(); toast('La vidéo ne s\'affiche pas. Réessaie.'); return; }
+          setTimeout(grab, 250);
+        })();
       })
-      .catch(function (e) { toast('Impossible de lire cette vidéo : ' + friendlyError(e)); });
+      .catch(function (e) { exitVideo(); toast('Impossible de lire cette vidéo : ' + friendlyError(e)); });
+  }
+  function showVideo(el, item) {
+    var a = item.attributes || {};
+    var stage = root.querySelector('.vstage');
+    if (!stage || !videoMode) return;
+    stage.className = 'vstage';
+    stage.innerHTML = '<div class="vbox"></div>' +
+      '<div class="vctl"><div class="vinfo"><div class="vt">' + esc(a.name) + '</div><div class="va">' + esc(a.artistName) + '</div></div>' +
+      '<div class="bar vbar"><i id="vb"></i></div><div class="times"><span id="vt"></span><span id="vd"></span></div>' +
+      '<div class="ctrls" style="justify-content:center">' +
+      '<div class="cb" data-f tabindex="0" id="vback" aria-label="Reculer de 10 secondes"><b style="font-size:13px">-10</b></div>' +
+      '<div class="cb pp" data-f tabindex="0" id="vpp">' + SVG_PAUSE + '</div>' +
+      '<div class="cb" data-f tabindex="0" id="vfwd" aria-label="Avancer de 10 secondes"><b style="font-size:13px">+10</b></div>' +
+      '<div class="cb" data-f tabindex="0" id="vclose" aria-label="Fermer">✕</div>' +
+      '</div></div>';
+    vid = { el: el, home: el.parentNode, next: el.nextSibling, stage: stage, style: el.getAttribute('style') };
+    stage.querySelector('.vbox').appendChild(el);
+    el.setAttribute('style', 'width:100%;height:100%;object-fit:contain;background:#000');
+    if (el.paused) { try { el.play(); } catch (e) {} }
+    stage.querySelector('#vpp').onclick = function () { music.isPlaying ? music.pause() : music.play(); };
+    stage.querySelector('#vback').onclick = function () { music.seekToTime(Math.max(0, (music.currentPlaybackTime || 0) - 10)); };
+    stage.querySelector('#vfwd').onclick = function () { music.seekToTime((music.currentPlaybackTime || 0) + 10); };
+    stage.querySelector('#vclose').onclick = exitVideo;
+    focusEl(stage.querySelector('#vpp'));
+    pokeVideoControls();
+  }
+  function pokeVideoControls() {
+    if (!vid) return;
+    vid.stage.classList.add('show');
+    clearTimeout(vid.hideTimer);
+    vid.hideTimer = setTimeout(function () { if (vid && music.isPlaying) vid.stage.classList.remove('show'); }, 4000);
+  }
+  function updateVideoControls() {
+    if (!vid) return;
+    var d = music.currentPlaybackDuration || 0, t = music.currentPlaybackTime || 0;
+    var b = vid.stage.querySelector('#vb'); if (b) b.style.width = (d ? Math.min(100, t / d * 100) : 0) + '%';
+    var x = vid.stage.querySelector('#vt'); if (x) x.textContent = fmt(t);
+    var y = vid.stage.querySelector('#vd'); if (y) y.textContent = fmt(d);
+    var pp = vid.stage.querySelector('#vpp'); if (pp) pp.innerHTML = music.isPlaying ? SVG_PAUSE : SVG_PLAY;
+    if (!music.isPlaying) vid.stage.classList.add('show');
   }
   function exitVideo() {
     videoMode = false;
+    try { music.pause(); } catch (e) {}
+    try { if (vid) vid.el.pause(); } catch (e) {}
     try { music.stop(); } catch (e) {}
-    root.classList.remove('tv-hidden'); document.documentElement.classList.add('tv-on');
-    render();
+    document.documentElement.classList.add('tv-on');
+    var st = root.querySelector('.vstage');
+    if (st && !vid) st.remove();
+    if (vid) {
+      clearTimeout(vid.hideTimer);
+      try {
+        if (vid.style == null) vid.el.removeAttribute('style'); else vid.el.setAttribute('style', vid.style);
+        if (vid.home) vid.home.insertBefore(vid.el, vid.next && vid.next.parentNode === vid.home ? vid.next : null);
+      } catch (e) {}
+      vid.stage.remove();
+      vid = null;
+    }
+    updateMini();
+    focusEl(root.querySelector('.main [data-f]'));
   }
 
   function toast(text) {
@@ -1233,13 +1332,14 @@
     var E = window.MusicKit && MusicKit.Events ? MusicKit.Events : {};
     function on(name, fn) { try { music.addEventListener(E[name] || name, fn); } catch (e) {} }
     on('nowPlayingItemDidChange', function () { updateMini(); if (playerOpen) drawPlayer(); });
-    on('playbackStateDidChange', function () { updateMini(); updatePlayButton(); });
+    on('playbackStateDidChange', function () { updateMini(); updatePlayButton(); updateVideoControls(); });
     var lastTick = 0;
     on('playbackTimeDidChange', function () {
       var now = Date.now();
       if (now - lastTick < 500) return;
       lastTick = now;
       updateProgress();
+      updateVideoControls();
     });
     on('authorizationStatusDidChange', function () {
       if (signingIn) return;
