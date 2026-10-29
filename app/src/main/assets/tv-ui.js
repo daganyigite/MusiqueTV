@@ -484,8 +484,9 @@
     });
     root.querySelector('#reload').onclick = function () { try { TVBridge.reloadUi(); } catch (e) { location.reload(); } };
     root.querySelector('#logout').onclick = function () {
+      loggingOut = true;
       forgetToken();
-      Promise.resolve(music.unauthorize()).then(function () { viewLogin(); });
+      Promise.resolve(music.unauthorize()).then(function () { loggingOut = false; viewLogin(); });
     };
     settle();
   }
@@ -702,6 +703,8 @@
       '<h1>Musique TV</h1><p class="sub">Connecte-toi avec ton compte Apple pour retrouver tes playlists.</p>' +
       '<div class="btns" style="justify-content:center"><div class="btn pri" data-f tabindex="0" id="login">Se connecter avec Apple</div></div></div>';
     root.querySelector('#login').onclick = function () {
+      loggingOut = false;
+      reapplied = [];
       Promise.resolve(music.authorize()).then(function () {
         saveToken();
         tab = 'home'; stack = []; render();
@@ -739,8 +742,23 @@
     on('playbackStateDidChange', function () { updateMini(); if (playerOpen) drawPlayer(); });
     on('playbackTimeDidChange', updateProgress);
     on('authorizationStatusDidChange', function () {
-      if (music.isAuthorized) saveToken();
-      else if (!restoring) viewLogin();
+      if (music.isAuthorized) { saveToken(); return; }
+      if (restoring) return;
+      // Le site Apple a annulé la connexion de son côté : on la lui remet,
+      // sauf si c'est toi qui as demandé à te déconnecter.
+      var saved = null;
+      try { saved = localStorage.getItem(TOKEN_KEY); } catch (e) {}
+      var now = Date.now();
+      reapplied = reapplied.filter(function (t) { return now - t < 60000; });
+      if (!loggingOut && saved && reapplied.length < 5) {
+        reapplied.push(now);
+        setTimeout(function () {
+          try { music.musicUserToken = saved; } catch (e) {}
+          setSiteCookie(saved);
+        }, 300);
+        return;
+      }
+      viewLogin();
     });
     watchSiteDialogs();
     if (music.isAuthorized) { saveToken(); render(); return; }
@@ -752,14 +770,24 @@
    * On garde donc le jeton de connexion dans la mémoire de l'app et on le lui redonne. */
   var TOKEN_KEY = 'tv_music_user_token';
   var restoring = false;
+  var loggingOut = false;
+  var reapplied = [];
+  // Le site Apple reconnaît une personne connectée grâce à ce cookie.
+  function setSiteCookie(t) {
+    try {
+      document.cookie = 'media-user-token=' + encodeURIComponent(t) +
+        '; domain=.apple.com; path=/; max-age=' + (t ? 31536000 : 0) + '; secure; samesite=lax';
+    } catch (e) {}
+  }
   function saveToken() {
     try {
       var t = music.musicUserToken;
-      if (t) localStorage.setItem(TOKEN_KEY, t);
+      if (t) { localStorage.setItem(TOKEN_KEY, t); setSiteCookie(t); }
     } catch (e) {}
   }
   function forgetToken() {
     try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+    setSiteCookie('');
   }
   function restoreToken() {
     var saved = null;
@@ -767,6 +795,7 @@
     if (!saved) { viewLogin(); return; }
     restoring = true;
     try { music.musicUserToken = saved; } catch (e) {}
+    setSiteCookie(saved);
     // On vérifie que le jeton est toujours valable avec une petite requête.
     api('/v1/me/storefront').then(function (d) {
       restoring = false;
