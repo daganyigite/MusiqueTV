@@ -41,6 +41,9 @@
     '#tvui .grid{display:flex;flex-wrap:wrap;gap:28px 24px;padding:18px 18px;margin:-8px -18px 0}',
     '#tvui .vstage{position:fixed;inset:0;z-index:20;background:#000}',
     '#tvui .vbox{position:absolute;inset:0}',
+    '#tvui .vposter{position:absolute;inset:0;background:#000 center/cover no-repeat;opacity:.35;filter:blur(2px)}',
+    '#tvui .vspin{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,.2);border-top-color:var(--acc);animation:tvspin 1s linear infinite}',
+    '@keyframes tvspin{to{transform:rotate(360deg)}}',
     '#tvui .vctl{position:absolute;left:0;right:0;bottom:0;padding:80px 6vw 36px;background:linear-gradient(transparent,rgba(0,0,0,.85));opacity:0;transition:opacity .3s}',
     '#tvui .vstage.show .vctl{opacity:1}',
     '#tvui .vt{font-size:clamp(22px,3vw,34px);font-weight:800}',
@@ -50,6 +53,9 @@
     '#tvui .vstage .cb{background:rgba(255,255,255,.16);font-size:20px}',
     '#tvui .vstage .cb.pp{background:#F2F2F4}',
     '#tvui .main [data-f]{scroll-margin:40px 30px 140px}',
+    '#tvui .main::after{content:"";display:block;height:45vh}',
+    '#tvui .main{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 26px);mask-image:linear-gradient(to bottom,transparent 0,#000 26px)}',
+    '#tvui .rscroll{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 18px,#000 calc(100% - 18px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 18px,#000 calc(100% - 18px),transparent 100%)}',
     '#tvui .rail [data-f]{scroll-margin:28px 0 28px}',
     '#tvui .qrow{scroll-margin:16px 0}',
     '#tvui .dleft{position:sticky;top:0;align-self:flex-start;padding-bottom:120px}',
@@ -95,6 +101,9 @@
     '#tvui .mb{width:50px;height:50px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#F2F2F4;outline:none}',
     '#tvui .mb.sm{color:#B9BBC4}',
     '#tvui .mb.sm.act{color:var(--acc)}',
+    '#tvui .mb{position:relative}',
+    '#tvui .r1{position:absolute;right:9px;bottom:9px;min-width:14px;height:14px;border-radius:7px;background:var(--acc);color:#0E0F13;font-size:10px;font-weight:800;line-height:14px;text-align:center}',
+    '#tvui .mb:focus .r1{background:#0E0F13;color:#F2F2F4}',
     '#tvui .mb:focus{background:#F2F2F4;color:#0E0F13}',
     '#tvui .mnow{flex:1;min-width:0;display:flex;align-items:center;gap:14px;padding:8px 14px 12px;margin:0 10px;border-radius:14px;position:relative;outline:none}',
     '#tvui .mnow:focus{background:rgba(255,255,255,.13);box-shadow:inset 0 0 0 2px #F2F2F4}',
@@ -143,7 +152,7 @@
     '#tvui .partist{font-size:20px;color:#9A9CA6;margin:0}',
     '#tvui .times{display:flex;justify-content:space-between;font-size:14px;color:#9A9CA6;margin-top:10px}',
     '#tvui .ctrls{display:flex;align-items:center;gap:22px}',
-    '#tvui .cb{flex-shrink:0;width:60px;height:60px;border-radius:50%;background:#1E2028;color:#F2F2F4;display:flex;align-items:center;justify-content:center;outline:none}',
+    '#tvui .cb{position:relative;flex-shrink:0;width:60px;height:60px;border-radius:50%;background:#1E2028;color:#F2F2F4;display:flex;align-items:center;justify-content:center;outline:none}',
     '#tvui .cb.sm{width:52px;height:52px;background:transparent;color:#9A9CA6}',
     '#tvui .cb.sm.act{color:var(--acc)}',
     '#tvui .cb.pp{width:84px;height:84px;background:#F2F2F4;color:#0E0F13}',
@@ -258,8 +267,43 @@
     var layer = topLayer();
     if (layer !== root && !layer.contains(el)) return; // le panneau ou le lecteur garde le focus
     el.focus({ preventScroll: true });
-    el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (!smartScroll(el)) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     lastFocus = el;
+  }
+  /* Défilement « par rangée », comme sur Apple TV : la rangée choisie (avec son titre)
+   * vient se caler en haut, au lieu de laisser une rangée à moitié coupée. */
+  function smartScroll(el) {
+    var main = el.closest('.main');
+    var rail = el.closest('.rscroll');
+    if (rail) {
+      var rr = rail.getBoundingClientRect(), er = el.getBoundingClientRect();
+      var pad = 24;
+      if (er.top < rr.top + pad) rail.scrollTop -= (rr.top + pad - er.top);
+      else if (er.bottom > rr.bottom - pad) rail.scrollTop += (er.bottom - (rr.bottom - pad));
+      return true;
+    }
+    if (!main) return false;
+    var row = el.closest('.row');
+    var grid = el.closest('.grid');
+    if (!row && !grid) return false;
+    var mr = main.getBoundingClientRect();
+    var target;
+    if (row) {
+      // horizontal : on garde la carte entière visible dans sa rangée
+      var rb = row.getBoundingClientRect(), cb = el.getBoundingClientRect();
+      if (cb.left < rb.left + 20) row.scrollLeft -= (rb.left + 20 - cb.left);
+      else if (cb.right > rb.right - 20) row.scrollLeft += (cb.right - (rb.right - 20));
+      var head = row.previousElementSibling && row.previousElementSibling.tagName === 'H2' ? row.previousElementSibling : row;
+      var firstRow = main.querySelector('.row');
+      target = row === firstRow ? 0 : head.getBoundingClientRect().top - mr.top + main.scrollTop - 28;
+    } else {
+      var cards = grid.querySelectorAll('[data-f]');
+      var firstTop = cards[0] ? cards[0].getBoundingClientRect().top : 0;
+      var ct = el.getBoundingClientRect().top;
+      target = Math.abs(ct - firstTop) < 4 ? 0 : ct - mr.top + main.scrollTop - 36;
+    }
+    main.scrollTop = Math.max(0, target);
+    return true;
   }
   function focusFirst(sel) {
     var el = root.querySelector(sel || '.main [data-f]') || focusables()[0];
@@ -688,7 +732,8 @@
       '</div><h2>Compte</h2><div class="btns">' +
       '<div class="btn" data-f tabindex="0" id="reload">Recharger l\'app</div>' +
       '<div class="btn" data-f tabindex="0" id="logout">Se déconnecter</div></div>' +
-      '<h2>Dépannage</h2><div class="btns"><div class="btn" data-f tabindex="0" id="diag">Tester la lecture</div></div>' +
+      '<h2>Dépannage</h2><div class="btns"><div class="btn" data-f tabindex="0" id="diag">Tester la lecture</div>' +
+      '<div class="btn" data-f tabindex="0" id="vmode">Vidéos : ' + (localStorage.getItem('tv_video_native') === '1' ? 'lecteur Apple' : 'lecteur de l\'app') + '</div></div>' +
       '<h2>Aide</h2><p class="sub" style="max-width:760px;line-height:1.6">Contenu explicite : ' + (restricted() ? '<b style="color:#F28B6B">bloqué</b>' : 'autorisé') +
       '. Ce réglage dépend de ton compte Apple, pas de l\'app. Pour le changer : sur ton PC ou téléphone, va sur music.apple.com, clique sur ton compte &gt; Réglages, et sous Contrôle parental désactive Restrictions du contenu. Ensuite, dans cette app : Réglages &gt; Recharger l\'app.</p>' +
       '<p class="sub" style="margin-top:28px">Pays du compte : ' + esc(sf.toUpperCase()) + '</p>';
@@ -702,6 +747,11 @@
     });
     root.querySelector('#reload').onclick = function () { clearApiCache(); side.loaded = false; try { TVBridge.reloadUi(); } catch (e) { location.reload(); } };
     root.querySelector('#diag').onclick = function () { pushView(viewDiagnostic); };
+    root.querySelector('#vmode').onclick = function () {
+      var n = localStorage.getItem('tv_video_native') === '1';
+      try { localStorage.setItem('tv_video_native', n ? '0' : '1'); } catch (e) {}
+      this.textContent = 'Vidéos : ' + (n ? 'lecteur de l\'app' : 'lecteur Apple');
+    };
     root.querySelector('#logout').onclick = function () {
       Promise.resolve(music.unauthorize()).then(function () { viewLogin(); });
     };
@@ -971,22 +1021,74 @@
     var old = root.querySelector('.vstage'); if (old) old.remove();
     var stage = document.createElement('div');
     stage.className = 'vstage show';
-    stage.innerHTML = '<div class="center" style="height:100%"><p class="sub">Chargement de la vidéo…</p></div>';
+    var ia = item.attributes || {};
+    var poster = artUrl(ia, 1280);
+    stage.innerHTML = (poster ? '<div class="vposter" style="background-image:url(\'' + poster + '\')"></div>' : '') +
+      '<div class="center" style="height:100%;position:relative"><div class="vspin"></div>' +
+      '<div class="vt">' + esc(ia.name) + '</div><p class="sub">' + esc(ia.artistName) + ' · chargement…</p></div>';
     root.appendChild(stage);
     videoMode = true;
     document.documentElement.classList.remove('tv-on');
+    var native = false;
+    try { native = localStorage.getItem('tv_video_native') === '1'; } catch (e) {}
     Promise.resolve(music.setQueue({ musicVideo: id }))
-      .then(function () { return music.play(); })
       .then(function () {
+        // On lance la lecture sans attendre et on cherche la vidéo en parallèle (plus rapide).
+        Promise.resolve(music.play()).catch(function (e) {
+          if (videoMode && !vid) { exitVideo(); toast('Impossible de lire cette vidéo : ' + friendlyError(e)); }
+        });
         var tries = 0;
         (function grab() {
+          if (!videoMode) return;
           var el = findSiteVideo();
-          if (el) { showVideo(el, item); return; }
-          if (++tries > 60) { exitVideo(); toast('La vidéo ne s\'affiche pas. Réessaie.'); return; }
-          setTimeout(grab, 250);
+          // On attend que la vidéo tourne vraiment avant de la récupérer :
+          // la déplacer trop tôt bloque son démarrage.
+          var running = el && !el.paused && el.currentTime > 0.15 && el.videoWidth > 0;
+          if (el && native) { showNativeVideo(el); return; }
+          if (running) { showVideo(el, item); return; }
+          tries++;
+          if (tries === 75 && el) { showNativeVideo(el); return; }   // ~15 s : on laisse le lecteur Apple
+          if (tries > 150) { exitVideo(); toast('La vidéo ne démarre pas. Réessaie.'); return; }
+          setTimeout(grab, 200);
         })();
       })
       .catch(function (e) { exitVideo(); toast('Impossible de lire cette vidéo : ' + friendlyError(e)); });
+  }
+  /* Secours : si la vidéo ne tourne pas dans notre écran (certaines télés), on affiche
+   * directement le lecteur vidéo d'Apple, et on s'en souvient pour les fois suivantes. */
+  function showNativeVideo(el) {
+    var st = root.querySelector('.vstage'); if (st) st.remove();
+    vid = { el: el, native: true };
+    root.classList.add('tv-hidden');
+    toast('Touche Retour pour revenir à l\'app');
+  }
+  function videoWatchdog() {
+    if (!vid || vid.native) return;
+    var el = vid.el;
+    var t0 = el.currentTime || 0;
+    var m0 = music.currentPlaybackTime || 0;
+    setTimeout(function () {
+      if (!vid || vid.native || vid.el !== el || !videoMode) return;
+      var moved = (el.currentTime || 0) - t0 > 0.3 || (music.currentPlaybackTime || 0) - m0 > 0.3;
+      var hasPicture = el.videoWidth > 0;
+      if (moved && hasPicture) return;
+      if (!music.isPlaying && moved) return;
+      // Ne marche pas ici : on rend la vidéo au lecteur d'Apple.
+      try { localStorage.setItem('tv_video_native', '1'); } catch (e) {}
+      restoreSiteVideo();
+      vid.stage && vid.stage.remove();
+      vid = { el: el, native: true };
+      root.classList.add('tv-hidden');
+      try { music.play(); } catch (e) {}
+      toast('Touche Retour pour revenir à l\'app');
+    }, 7000);
+  }
+  function restoreSiteVideo() {
+    if (!vid || vid.native || !vid.el) return;
+    try {
+      if (vid.style == null) vid.el.removeAttribute('style'); else vid.el.setAttribute('style', vid.style);
+      if (vid.home) vid.home.insertBefore(vid.el, vid.next && vid.next.parentNode === vid.home ? vid.next : null);
+    } catch (e) {}
   }
   function showVideo(el, item) {
     var a = item.attributes || {};
@@ -1012,6 +1114,7 @@
     stage.querySelector('#vclose').onclick = exitVideo;
     focusEl(stage.querySelector('#vpp'));
     pokeVideoControls();
+    videoWatchdog();
   }
   function pokeVideoControls() {
     if (!vid) return;
@@ -1036,13 +1139,11 @@
     document.documentElement.classList.add('tv-on');
     var st = root.querySelector('.vstage');
     if (st && !vid) st.remove();
+    root.classList.remove('tv-hidden');
     if (vid) {
       clearTimeout(vid.hideTimer);
-      try {
-        if (vid.style == null) vid.el.removeAttribute('style'); else vid.el.setAttribute('style', vid.style);
-        if (vid.home) vid.home.insertBefore(vid.el, vid.next && vid.next.parentNode === vid.home ? vid.next : null);
-      } catch (e) {}
-      vid.stage.remove();
+      restoreSiteVideo();
+      if (vid.stage) vid.stage.remove();
       vid = null;
     }
     updateMini();
@@ -1089,7 +1190,10 @@
     var sh = false, rp = 0;
     try { sh = music.shuffleMode === 1; rp = music.repeatMode; } catch (e) {}
     mini.querySelector('#msh').classList.toggle('act', sh);
-    mini.querySelector('#mrp').classList.toggle('act', !!rp);
+    var r = mini.querySelector('#mrp');
+    r.classList.toggle('act', !!rp);
+    r.innerHTML = icon('repeat', 20) + (rp === 1 ? '<span class="r1">1</span>' : '');
+    r.setAttribute('aria-label', rp === 1 ? 'Répéter ce morceau' : rp ? 'Répéter tout' : 'Répéter');
     if (queueOpen) markQueueCurrent();
     updateProgress();
   }
@@ -1097,8 +1201,13 @@
   function prevTrack() {
     if ((music.currentPlaybackTime || 0) > 4) music.seekToTime(0); else music.skipToPreviousItem();
   }
+  /* Répéter : désactivé → tout répéter → ce morceau seulement → désactivé (comme Apple Music) */
   function cycleRepeat() {
-    try { music.repeatMode = (music.repeatMode + 1) % 3; } catch (e) {}
+    var cur = 0;
+    try { cur = music.repeatMode || 0; } catch (e) {}
+    var next = cur === 0 ? 2 : cur === 2 ? 1 : 0;   // 2 = tout, 1 = un seul morceau
+    try { music.repeatMode = next; } catch (e) {}
+    toast(next === 2 ? 'Répéter : toute la liste' : next === 1 ? 'Répéter : ce morceau' : 'Répéter : désactivé');
     updateMini();
     if (playerOpen) drawPlayer();
   }
@@ -1223,7 +1332,7 @@
       '<div class="cb" data-f tabindex="0" id="ppr">' + SVG_PREV + '</div>' +
       '<div class="cb pp" data-f tabindex="0" id="pp">' + (music.isPlaying ? SVG_PAUSE : SVG_PLAY) + '</div>' +
       '<div class="cb" data-f tabindex="0" id="pnx">' + SVG_NEXT + '</div>' +
-      '<div class="cb sm' + (repeat ? ' act' : '') + '" data-f tabindex="0" id="prp">' + icon('repeat') + (repeat === 1 ? '<span style="font-size:11px;font-weight:800;margin-left:-4px">1</span>' : '') + '</div>' +
+      '<div class="cb sm' + (repeat ? ' act' : '') + '" data-f tabindex="0" id="prp">' + icon('repeat') + (repeat === 1 ? '<span class="r1" style="right:12px;bottom:12px">1</span>' : '') + '</div>' +
       '<div class="cb sm" data-f tabindex="0" id="pq" aria-label="En attente">' + icon('list') + '</div>' +
       '</div></div></div>' +
       '<div class="queue"><h2 style="margin:0 0 6px">À suivre</h2>' +
