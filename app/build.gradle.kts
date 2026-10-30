@@ -15,13 +15,23 @@ android {
         versionName = "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
     }
 
-    // Clé de signature fixe : chaque nouvelle version s'installe par-dessus l'ancienne.
+    // Clé de signature : chaque nouvelle version s'installe par-dessus l'ancienne.
+    // Si une clé privée est configurée dans les secrets GitHub, c'est elle qui est utilisée
+    // (personne d'autre ne peut alors fabriquer une fausse mise à jour de l'app).
     signingConfigs {
         create("perso") {
-            storeFile = file("musiquetv.keystore")
-            storePassword = "musiquetv"
-            keyAlias = "musiquetv"
-            keyPassword = "musiquetv"
+            val privateStore = System.getenv("SIGNING_STORE_FILE")
+            if (privateStore != null && file(privateStore).exists()) {
+                storeFile = file(privateStore)
+                storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+                keyAlias = System.getenv("SIGNING_KEY_ALIAS") ?: "musiquetv"
+                keyPassword = System.getenv("SIGNING_STORE_PASSWORD")
+            } else {
+                storeFile = file("musiquetv.keystore")
+                storePassword = "musiquetv"
+                keyAlias = "musiquetv"
+                keyPassword = "musiquetv"
+            }
         }
     }
 
