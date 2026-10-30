@@ -174,6 +174,12 @@ class MainActivity : Activity() {
             runOnUiThread { splash.visibility = View.GONE }
         }
 
+        /** Fin du minuteur : on revient à l'écran d'accueil de la télé (la musique est en pause). */
+        @JavascriptInterface
+        fun goHome() {
+            runOnUiThread { moveTaskToBack(true) }
+        }
+
         @JavascriptInterface
         fun reloadUi() {
             runOnUiThread { web.loadUrl(START_URL) }
