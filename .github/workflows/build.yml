@@ -34,6 +34,20 @@ jobs:
             git push
           fi
 
+      - name: Clé de signature privée (si elle est configurée dans les secrets)
+        env:
+          KS: ${{ secrets.KEYSTORE_B64 }}
+          KP: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KS" ] && [ -n "$KP" ]; then
+            echo "$KS" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "SIGNING_STORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            echo "SIGNING_STORE_PASSWORD=$KP" >> "$GITHUB_ENV"
+            echo "Signature avec la clé privée."
+          else
+            echo "Pas de clé privée configurée : clé du dépôt utilisée."
+          fi
+
       - name: Installer Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
