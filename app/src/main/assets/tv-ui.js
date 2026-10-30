@@ -31,6 +31,12 @@
       opts: [['0', 'Jamais'], ['60', 'Après 1 min'], ['180', 'Après 3 min'], ['300', 'Après 5 min']] },
     { k: 'fade', sec: 'Lecture', label: 'Fondu enchaîné (aussi en « répéter ce morceau »)', def: '0',
       opts: [['0', 'Désactivé'], ['3', '3 secondes'], ['6', '6 secondes'], ['10', '10 secondes']] },
+    { k: 'sleepdef', sec: 'Minuteur', label: 'Durée proposée en premier', def: '30',
+      opts: [['15', '15 min'], ['30', '30 min'], ['45', '45 min'], ['60', '1 h']] },
+    { k: 'sleepfade', sec: 'Minuteur', label: 'Baisse progressive du son (dernière minute)', def: '1',
+      opts: [['1', 'Activée'], ['0', 'Désactivée']] },
+    { k: 'sleepend', sec: 'Minuteur', label: 'À la fin du minuteur', def: 'pause',
+      opts: [['pause', 'Mettre en pause'], ['exit', 'Pause et retour à l\'accueil de la télé']] },
     { k: 'stallfix', sec: 'Lecture', label: 'Relancer un titre qui se bloque', def: '1',
       opts: [['1', 'Activé'], ['0', 'Désactivé']] },
     { k: 'hideexplicit', sec: 'Lecture', label: 'Titres explicites dans les listes', def: '0',
@@ -205,6 +211,16 @@
     '#tvui .player .cb.pp{background:#F2F2F4}',
     '#tvui .player .bar{background:rgba(255,255,255,.22)}',
     '#tvui .seek{padding:12px 0;margin:-12px 0 0;border-radius:10px;outline:none}',
+    '#tvui .msl{width:auto!important;padding:0 12px;gap:6px;border-radius:25px;color:var(--acc)!important}',
+    '#tvui .slt{font-size:12px;font-weight:700;white-space:nowrap}',
+    '#tvui .slb .slt{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:4px;color:var(--acc)}',
+    '#tvui .smenu{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center}',
+    '#tvui .sbox{width:min(460px,80vw);background:#1C1D24;border:1px solid rgba(255,255,255,.1);border-radius:22px;padding:22px;box-shadow:0 30px 80px rgba(0,0,0,.6)}',
+    '#tvui .sbox h2{margin:0 0 12px 8px;display:flex;align-items:center;gap:10px;font-size:20px}',
+    '#tvui .sbox h2 svg{color:var(--acc)}',
+    '#tvui .sopt{padding:12px 16px;border-radius:12px;font-size:16px;font-weight:600;outline:none}',
+    '#tvui .sopt:focus{background:#F2F2F4;color:#0E0F13}',
+    '#tvui .sopt.off{color:#F28B6B;margin-top:6px}',
     '#tvui .lyrics{position:relative;z-index:1;flex:1.25;min-width:0;overflow:hidden;-webkit-mask-image:linear-gradient(transparent 0,#000 18%,#000 72%,transparent 100%);mask-image:linear-gradient(transparent 0,#000 18%,#000 72%,transparent 100%)}',
     '#tvui .lyrin{transition:transform .45s ease;padding:30vh 0 50vh}',
     '#tvui .ly{margin:0 0 .55em;font-size:calc(clamp(22px,2.7vw,36px) * var(--lyr,1));font-weight:800;line-height:1.25;color:rgba(255,255,255,.32);transition:color .3s,transform .3s;transform-origin:left center}',
@@ -256,7 +272,7 @@
     '#tvui .setv{height:46px;min-width:220px;justify-content:space-between;font-size:15px}',
     '#tvui .setarr{font-size:22px;opacity:.6;margin-left:14px}',
     '#tvui .swatch:focus{outline:4px solid #F2F2F4;outline-offset:4px}',
-    '@media (max-width:1100px){#tvui .rail{width:230px}#tvui .mini{left:230px}#tvui .pagebgw{left:230px}#tvui .queue{display:none}#tvui .mb{width:44px;height:44px}#tvui .pill{padding:0 10px}#tvui .mnow{margin:0 6px}#tvui .qpanel{width:60vw}#tvui .ctrls{gap:14px}#tvui .cb.pp{width:72px;height:72px}#tvui .main{padding:36px 36px 120px}}'
+    '@media (max-width:1100px){#tvui .rail{width:230px}#tvui .mini{left:230px}#tvui .pagebgw{left:230px}#tvui .queue{display:none}#tvui .mb{width:44px;height:44px}#tvui .pill{padding:0 10px}#tvui .mnow{margin:0 6px}#tvui .qpanel{width:60vw}#tvui .ctrls{gap:8px}#tvui .cb{width:52px;height:52px}#tvui .cb.sm{width:42px;height:42px}#tvui .cb.pp{width:68px;height:68px}#tvui .main{padding:36px 36px 120px}}'
   ].join('');
 
   /* ---------- Icônes ---------- */
@@ -279,7 +295,8 @@
     note: 'M9 18V5l12-2v13M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 19a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
     person: 'M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM4 21a8 8 0 0 1 16 0',
     grid: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
-    lyrics: 'M4 5h16v11H9l-5 4zM8 9h8M8 12h5'
+    lyrics: 'M4 5h16v11H9l-5 4zM8 9h8M8 12h5',
+    moon: 'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z'
   };
   function icon(name, size) {
     size = size || 22;
@@ -359,7 +376,7 @@
   var lastFocus = null;
 
   /* ---------- Navigation télécommande ---------- */
-  function topLayer() { return root.querySelector('.vstage') || root.querySelector('.qpanel') || root.querySelector('.player') || root; }
+  function topLayer() { return root.querySelector('.smenu') || root.querySelector('.vstage') || root.querySelector('.qpanel') || root.querySelector('.player') || root; }
   function focusables() {
     var scope = topLayer();
     return Array.prototype.filter.call(scope.querySelectorAll('[data-f]'), function (el) {
@@ -607,6 +624,7 @@
   window.__tvBack = function () {
     if (signingIn) { viewLogin(); return true; }
     if (videoMode) { exitVideo(); return true; }
+    if (sleepOpen) { closeSleepMenu(); return true; }
     if (queueOpen) { closeQueue(); return true; }
     if (playerOpen) { closePlayer(); return true; }
     if (stack.length > (tab === 'item' ? 1 : 0)) { stack.pop(); render(); return true; }
@@ -769,6 +787,7 @@
       mini.querySelector('#mrp').onclick = cycleRepeat;
       mini.querySelector('#mq').onclick = function () { openQueue(this); };
       mini.querySelector('#mly').onclick = function () { openPlayer(true); };
+      mini.querySelector('#msl').onclick = function () { openSleepMenu(this); };
     }
     updateMini();
   }
@@ -1491,6 +1510,7 @@
       '<div class="mtx"><div class="mt" id="mt"></div><div class="ma" id="ma"></div></div>' +
       '<div class="bar"><i id="mb"></i></div></div>' +
       '<div class="msep"></div>' +
+      '<div class="mb sm keep msl" data-f tabindex="0" id="msl" aria-label="Minuteur" style="display:none">' + icon('moon', 18) + '<span class="slt"></span></div>' +
       '<div class="mb sm keep" data-f tabindex="0" id="mly" aria-label="Paroles">' + icon('lyrics', 21) + '</div>' +
       '<div class="mb sm keep" data-f tabindex="0" id="mq" aria-label="En attente">' + icon('list', 22) + '</div>' +
       '</div></div>';
@@ -1514,6 +1534,7 @@
     r.innerHTML = icon('repeat', 20) + (rp === 1 ? '<span class="r1">1</span>' : '');
     r.setAttribute('aria-label', rp === 1 ? 'Répéter ce morceau' : rp ? 'Répéter tout' : 'Répéter');
     if (queueOpen) markQueueCurrent();
+    updateSleepUi();
     updateProgress();
   }
   function togglePlay() { userAction(); music.isPlaying ? music.pause() : music.play(); }
@@ -1675,6 +1696,7 @@
       '<div class="cb" data-f tabindex="0" id="pnx">' + SVG_NEXT + '</div>' +
       '<div class="cb sm' + (repeat ? ' act' : '') + '" data-f tabindex="0" id="prp">' + icon('repeat') + (repeat === 1 ? '<span class="r1" style="right:12px;bottom:12px">1</span>' : '') + '</div>' +
       '<div class="cb sm' + (lyricsOn ? ' act' : '') + '" data-f tabindex="0" id="plyr" aria-label="Paroles">' + icon('lyrics') + '</div>' +
+      '<div class="cb sm slb' + (sleep.mode ? ' act' : '') + '" data-f tabindex="0" id="psl" aria-label="Minuteur">' + icon('moon') + '<span class="slt">' + esc(sleepLabel()) + '</span></div>' +
       '<div class="cb sm" data-f tabindex="0" id="pq" aria-label="En attente">' + icon('list') + '</div>' +
       '</div></div></div>' +
       (lyricsOn ? lyricsHtml() : '') +
@@ -1700,11 +1722,99 @@
     p.querySelector('#prp').onclick = cycleRepeat;
     p.querySelector('#pq').onclick = function () { openQueue(this); };
     p.querySelector('#plyr').onclick = toggleLyrics;
+    p.querySelector('#psl').onclick = function () { openSleepMenu(this); };
     p.classList.toggle('lyr', lyricsOn);
     if (lyricsOn) loadLyricsInto();
     updateProgress();
     var f = p.querySelector('#' + focusedId) || p.querySelector('#pp');
     focusEl(f);
+  }
+
+  /* ---------- Minuteur de mise en veille ---------- */
+  var sleep = { mode: null, until: 0, itemId: null, base: 1 };
+  function sleepLabel() {
+    if (!sleep.mode) return '';
+    if (sleep.mode === 'track') return 'fin du titre';
+    if (sleep.mode === 'list') return 'fin de liste';
+    var r = Math.max(0, sleep.until - Date.now()), m = Math.ceil(r / 60000);
+    if (r < 60000) return '0:' + ('0' + Math.ceil(r / 1000)).slice(-2);
+    return m >= 60 ? Math.floor(m / 60) + ' h ' + ('0' + (m % 60)).slice(-2) : m + ' min';
+  }
+  function startSleep(mode, minutes) {
+    var it = realNowItem();
+    try { if (!sleep.mode && music.volume > 0.2) sleep.base = music.volume; } catch (e) {}
+    sleep.mode = mode;
+    sleep.until = mode === 'time' ? Date.now() + minutes * 60000 : 0;
+    sleep.itemId = it && it.id;
+    toast('Minuteur : ' + (mode === 'time' ? (minutes >= 60 ? minutes / 60 + ' h' : minutes + ' min') : mode === 'track' ? 'à la fin de ce titre' : 'à la fin de la liste'));
+    updateSleepUi();
+  }
+  function cancelSleep(silent) {
+    if (!sleep.mode) return;
+    sleep.mode = null;
+    try { music.volume = sleep.base; } catch (e) {}
+    if (!silent) toast('Minuteur désactivé');
+    updateSleepUi();
+  }
+  function endSleep() {
+    var exit = setting('sleepend') === 'exit';
+    try { music.pause(); } catch (e) {}
+    cancelSleep(true);
+    toast('Minuteur terminé, bonne nuit');
+    if (exit) setTimeout(function () { try { TVBridge.goHome(); } catch (e) {} }, 1500);
+  }
+  function updateSleepUi() {
+    var lab = sleepLabel();
+    var ms = root.querySelector('#msl');
+    if (ms) { ms.style.display = sleep.mode ? 'flex' : 'none'; var t = ms.querySelector('.slt'); if (t) t.textContent = lab; }
+    var ps = root.querySelector('#psl');
+    if (ps) { ps.classList.toggle('act', !!sleep.mode); var u = ps.querySelector('.slt'); if (u) u.textContent = lab; }
+  }
+  setInterval(function () {
+    if (!sleep.mode || !music) return;
+    var t = preciseTime(), d = music.currentPlaybackDuration || 0;
+    if (sleep.mode === 'time') {
+      var r = sleep.until - Date.now();
+      if (r <= 0) { endSleep(); return; }
+      if (r < 60000 && setting('sleepfade') === '1') { try { music.volume = Math.max(0.05, r / 60000) * sleep.base; } catch (e) {} }
+    } else {
+      var it = realNowItem();
+      var lastInList = false;
+      try { lastInList = music.queue.position >= music.queue.items.length - 1; } catch (e) {}
+      var nearEnd = d > 3 && t >= d - 1.2;
+      if (sleep.mode === 'track' && (nearEnd || (it && sleep.itemId && it.id !== sleep.itemId))) { endSleep(); return; }
+      if (sleep.mode === 'list' && nearEnd && lastInList) { endSleep(); return; }
+      if (sleep.mode === 'list' && (music.playbackState === 5 || music.playbackState === 10)) { endSleep(); return; }
+    }
+    updateSleepUi();
+  }, 1000);
+  var sleepOpen = false, sleepOpener = null;
+  function openSleepMenu(from) {
+    sleepOpen = true;
+    sleepOpener = from && from.id;
+    var old = root.querySelector('.smenu'); if (old) old.remove();
+    var opts = [['15', '15 minutes'], ['30', '30 minutes'], ['45', '45 minutes'], ['60', '1 heure'], ['120', '2 heures'], ['track', 'À la fin de ce titre'], ['list', 'À la fin de la playlist / de l\'album']];
+    var m = document.createElement('div');
+    m.className = 'smenu';
+    m.innerHTML = '<div class="sbox"><h2>' + icon('moon', 22) + ' Minuteur' + (sleep.mode ? ' · ' + esc(sleepLabel()) : '') + '</h2>' +
+      opts.map(function (o) { return '<div class="sopt" data-f tabindex="0" data-s="' + o[0] + '">' + o[1] + '</div>'; }).join('') +
+      (sleep.mode ? '<div class="sopt off" data-f tabindex="0" data-s="off">Désactiver le minuteur</div>' : '') + '</div>';
+    root.appendChild(m);
+    m.querySelectorAll('.sopt').forEach(function (el) {
+      el.onclick = function () {
+        var v = el.getAttribute('data-s');
+        if (v === 'off') cancelSleep();
+        else if (v === 'track' || v === 'list') startSleep(v);
+        else startSleep('time', +v);
+        closeSleepMenu();
+      };
+    });
+    focusEl(m.querySelector('[data-s="' + setting('sleepdef') + '"]') || m.querySelector('.sopt'));
+  }
+  function closeSleepMenu() {
+    sleepOpen = false;
+    var m = root.querySelector('.smenu'); if (m) m.remove();
+    focusEl((sleepOpener && root.querySelector('#' + sleepOpener)) || root.querySelector('.player #pp') || root.querySelector('#mnow'));
   }
 
   /* ---------- Paroles synchronisées (LRCLIB, lrclib.net) ----------
