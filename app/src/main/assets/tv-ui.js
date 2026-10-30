@@ -565,6 +565,35 @@
     if (vol != null) { try { music.volume = vol; } catch (e) {} }
   }, 200);
 
+  /* ---------- Répéter ce morceau ----------
+   * Le lecteur Apple, en « répéter ce morceau », joue une fraction de seconde du titre
+   * suivant avant de revenir. On ramène donc nous-mêmes le titre au début juste avant la fin. */
+  var loopGuard = 0, audioEl = null;
+  // Le lecteur Apple donne la position en secondes entières : on lit la position précise
+  // directement sur l'élément audio qui joue.
+  function preciseTime() {
+    if (!audioEl || audioEl.paused || !audioEl.isConnected) {
+      audioEl = null;
+      var list = document.querySelectorAll('audio');
+      for (var i = 0; i < list.length; i++) if (!list[i].paused) { audioEl = list[i]; break; }
+    }
+    var mt = music.currentPlaybackTime || 0;
+    if (audioEl && Math.abs(audioEl.currentTime - mt) < 2) return audioEl.currentTime;
+    return mt;
+  }
+  function repeatOneTick() {
+    if (!music || videoMode) return;
+    var rp = 0; try { rp = music.repeatMode; } catch (e) {}
+    if (rp !== 1 || !music.isPlaying || pendingSeek != null) return;
+    var t = preciseTime(), d = music.currentPlaybackDuration || 0;
+    if (d > 5 && t >= d - 1.6 && Date.now() - loopGuard > 2500) {
+      loopGuard = Date.now();
+      // 0,05 s et pas 0 : un retour à 0 pile fait recharger le titre au lecteur Apple (coupure).
+      Promise.resolve(music.seekToTime(0.05)).then(function () { if (!music.isPlaying) music.play(); }).catch(function () {});
+    }
+  }
+  setInterval(repeatOneTick, 100);
+
   /* ---------- Lecteur plein écran après inactivité ---------- */
   var idleSince = Date.now();
   window.addEventListener('keydown', function () { idleSince = Date.now(); }, true);
@@ -630,14 +659,29 @@
   ];
   var side = { pins: [], playlists: [], loaded: false };
   var navKey = 'home';
+  /* Chargé au démarrage. Sur la télé, la session Apple peut mettre quelques secondes à être
+   * prête : si la liste revient vide ou en erreur, on réessaie (sans garder le résultat vide en cache). */
+  var sideTries = 0, sideTimer = null;
+  function loadPlaylistsAll() {
+    return api('/v1/me/library/playlists', { limit: 100 }, true)
+      .catch(function () { return api('/v1/me/library/playlists', { limit: 25 }, true); })
+      .catch(function () { return []; });
+  }
   function loadSidebar() {
+    clearTimeout(sideTimer);
     return Promise.all([
-      api('/v1/me/library/pins', {}).catch(function () { return []; }),
-      api('/v1/me/library/playlists', { limit: 100 }).catch(function () { return []; })
+      api('/v1/me/library/pins', {}, true).catch(function () { return []; }),
+      loadPlaylistsAll()
     ]).then(function (r) {
-      side.pins = Array.isArray(r[0]) ? r[0] : [];
-      side.playlists = Array.isArray(r[1]) ? r[1] : [];
+      var pins = Array.isArray(r[0]) ? r[0] : [];
+      var pls = Array.isArray(r[1]) ? r[1] : [];
+      if (pins.length || !side.pins.length) side.pins = pins;
+      if (pls.length || !side.playlists.length) side.playlists = pls;
       side.loaded = true;
+      if (!pls.length && sideTries < 6) {
+        sideTries++;
+        sideTimer = setTimeout(loadSidebar, 2000 * sideTries);
+      } else if (pls.length) { sideTries = 0; }
       var rail = root.querySelector('.rail');
       if (rail) { var had = rail.contains(document.activeElement) && document.activeElement.getAttribute('data-nav'); rail.outerHTML = railHtml(); bindRail(); if (had) focusEl(root.querySelector('.rail [data-nav="' + had + '"]')); }
     });
@@ -808,6 +852,7 @@
       shell(html);
       settle();
       prefetch();
+      if (!side.playlists.length && r[0].length) { side.playlists = r[0]; var rl = root.querySelector('.rail'); if (rl) { rl.outerHTML = railHtml(); bindRail(); } loadSidebar(); }
     });
   }
   var prefetched = false;
@@ -1894,7 +1939,10 @@
     on('authorizationStatusDidChange', function () {
       if (signingIn) return;
       try { sf = music.storefrontId || sf; } catch (e) {}
-      if (!music.isAuthorized) viewLogin();
+      if (!music.isAuthorized) { viewLogin(); return; }
+      // Session revenue après coup : on affiche l'accueil si on était sur l'écran de connexion.
+      if (root.querySelector('#login')) { tab = 'home'; navKey = 'home'; stack = []; render(); }
+      sideTries = 0; loadSidebar();
     });
     watchSiteDialogs();
     // La session met parfois une seconde à revenir au démarrage : on patiente un peu.
